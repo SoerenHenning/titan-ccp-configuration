@@ -25,6 +25,8 @@ dependencies {
     testCompile 'junit:junit:4.12'
 }
 
+mainClassName = "titan.ccp.configuration.ConfigurationService"
+
 eclipse {
     classpath {
        downloadSources=true
