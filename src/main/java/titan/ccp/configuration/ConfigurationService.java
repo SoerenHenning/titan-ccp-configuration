@@ -3,25 +3,16 @@ package titan.ccp.configuration;
 import org.apache.commons.configuration2.Configuration;
 
 import redis.clients.jedis.Jedis;
-
-//import com.coreos.jetcd.Client;
-//import com.coreos.jetcd.KV;
-//import com.coreos.jetcd.data.ByteSequence;
-
 import spark.Spark;
 import titan.ccp.common.configuration.Configurations;
 
 public class ConfigurationService {
 
 	private final Configuration configuration = Configurations.create();
-	// private final KV etcd;
 	private final Jedis jedis;
 
 	public ConfigurationService() {
-		// final Client etcdClient =
-		// Client.builder().endpoints("http://localhost:2379").build();
-		// this.etcd = etcdClient.getKVClient();
-		this.jedis = new Jedis("localhost", 6379);
+		this.jedis = new Jedis(this.configuration.getString("redis.host"), this.configuration.getInt("redis.port"));
 	}
 
 	public void start() {
@@ -56,15 +47,10 @@ public class ConfigurationService {
 			} else {
 				return redisResponse;
 			}
-			// final ByteSequence key = ByteSequence.fromString("sensor_registry");
-			// return this.etcd.get(key).get().getKvs().get(0).getValue().toStringUtf8();
 		});
 
 		Spark.put("/sensor-registry/", (request, response) -> {
 			// TODO validation
-			// final ByteSequence key = ByteSequence.fromString("sensor_registry");
-			// final ByteSequence value = ByteSequence.fromString(request.body());
-			// this.etcd.put(key, value);
 			final String redisResponse = this.jedis.set("sensor_registry", request.body());
 			if ("OK".equals(redisResponse)) {
 				response.status(204);
