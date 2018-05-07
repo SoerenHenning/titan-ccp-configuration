@@ -1,0 +1,33 @@
+// Apply the java-library plugin to add support for Java Library
+apply plugin: 'application'
+apply plugin: 'eclipse'
+
+sourceCompatibility = "1.10"
+targetCompatibility = "1.10"
+
+allprojects { 
+	repositories {
+	    jcenter()
+	    maven {
+	    	url "https://oss.sonatype.org/content/repositories/snapshots/"
+	    }
+	}
+}
+
+dependencies {
+    compile 'org.industrial-devops:titan.ccp.model:0.0.1-SNAPSHOT'
+    compile 'com.sparkjava:spark-core:2.7.2'
+    //compile 'com.coreos:jetcd-core:0.0.2'
+    compile 'redis.clients:jedis:2.9.0'
+    compile 'org.slf4j:slf4j-simple:1.6.1'
+
+    // Use JUnit test framework
+    testCompile 'junit:junit:4.12'
+}
+
+eclipse {
+    classpath {
+       downloadSources=true
+       downloadJavadoc=true
+    }
+}
