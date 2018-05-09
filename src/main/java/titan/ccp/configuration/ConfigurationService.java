@@ -5,6 +5,7 @@ import org.apache.commons.configuration2.Configuration;
 import redis.clients.jedis.Jedis;
 import spark.Spark;
 import titan.ccp.common.configuration.Configurations;
+import titan.ccp.model.sensorregistry.SensorRegistry;
 
 public class ConfigurationService {
 
@@ -51,7 +52,8 @@ public class ConfigurationService {
 
 		Spark.put("/sensor-registry/", (request, response) -> {
 			// TODO validation
-			final String redisResponse = this.jedis.set("sensor_registry", request.body());
+			final SensorRegistry sensorRegistry = SensorRegistry.fromJson(request.body());
+			final String redisResponse = this.jedis.set("sensor_registry", sensorRegistry.toJson());
 			if ("OK".equals(redisResponse)) {
 				response.status(204);
 				return "";
