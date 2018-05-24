@@ -38,8 +38,8 @@ deploy:
     - docker:dind
   script:
     - docker build --pull -t titan-ccp-configuration .
-    - docker tag titan-ccp-aggregation industrialdevops/titan-ccp-configuration:latest
-    - docker tag titan-ccp-aggregation industrialdevops/titan-ccp-configuration:$(date +%Y%m%d%H%M%S)
+    - docker tag titan-ccp-configuration industrialdevops/titan-ccp-configuration:latest
+    - docker tag titan-ccp-configuration industrialdevops/titan-ccp-configuration:$(date +%Y%m%d%H%M%S)
     - echo $DOCKERHUB_PW | docker login -u $DOCKERHUB_ID --password-stdin
     - docker push industrialdevops/titan-ccp-configuration
     - docker logout
