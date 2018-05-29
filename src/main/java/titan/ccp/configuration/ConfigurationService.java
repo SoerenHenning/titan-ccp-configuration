@@ -11,12 +11,16 @@ public class ConfigurationService {
 
 	private final Configuration config = Configurations.create();
 	private final Jedis jedis;
-	private final KafkaPublisher kafkaPublisher;
+	private final EventPublisher eventPublisher;
 
 	public ConfigurationService() {
 		this.jedis = new Jedis(this.config.getString("redis.host"), this.config.getInt("redis.port"));
-		this.kafkaPublisher = new KafkaPublisher(this.config.getString("kafka.boostrap.servers"),
-				this.config.getString("kafka.topic"));
+		if (this.config.getBoolean("event.publishing")) {
+			this.eventPublisher = new KafkaPublisher(this.config.getString("kafka.boostrap.servers"),
+					this.config.getString("kafka.topic"));
+		} else {
+			this.eventPublisher = new NoopPublisher();
+		}
 	}
 
 	public void start() {
@@ -59,7 +63,7 @@ public class ConfigurationService {
 			final String json = sensorRegistry.toJson();
 			final String redisResponse = this.jedis.set("sensor_registry", json);
 			if ("OK".equals(redisResponse)) {
-				this.kafkaPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, json);
+				this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, json);
 				response.status(204);
 				return "";
 			} else {
@@ -75,7 +79,7 @@ public class ConfigurationService {
 
 	public void stop() {
 		this.jedis.close();
-		this.kafkaPublisher.close();
+		this.eventPublisher.close();
 	}
 
 	public static void main(final String[] args) {

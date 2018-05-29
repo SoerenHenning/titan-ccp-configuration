@@ -7,7 +7,7 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 
-public class KafkaPublisher {
+public class KafkaPublisher implements EventPublisher {
 
 	private final String topic;
 
@@ -31,6 +31,7 @@ public class KafkaPublisher {
 		this.producer = new KafkaProducer<>(properties, EventSerde.serializer(), new StringSerializer());
 	}
 
+	@Override
 	public void publish(final Event event, final String value) {
 		final ProducerRecord<Event, String> record = new ProducerRecord<>(this.topic, event, value);
 		this.producer.send(record);
