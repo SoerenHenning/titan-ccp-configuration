@@ -9,17 +9,20 @@ import titan.ccp.model.sensorregistry.SensorRegistry;
 
 public class ConfigurationService {
 
-	private final Configuration configuration = Configurations.create();
+	private final Configuration config = Configurations.create();
 	private final Jedis jedis;
+	private final KafkaPublisher kafkaPublisher;
 
 	public ConfigurationService() {
-		this.jedis = new Jedis(this.configuration.getString("redis.host"), this.configuration.getInt("redis.port"));
+		this.jedis = new Jedis(this.config.getString("redis.host"), this.config.getInt("redis.port"));
+		this.kafkaPublisher = new KafkaPublisher(this.config.getString("kafka.boostrap.servers"),
+				this.config.getString("kafka.topic"));
 	}
 
 	public void start() {
-		Spark.port(this.configuration.getInt("webserver.port"));
+		Spark.port(this.config.getInt("webserver.port"));
 
-		if (this.configuration.getBoolean("webserver.cors")) {
+		if (this.config.getBoolean("webserver.cors")) {
 			Spark.options("/*", (request, response) -> {
 
 				final String accessControlRequestHeaders = request.headers("Access-Control-Request-Headers");
@@ -53,8 +56,10 @@ public class ConfigurationService {
 		Spark.put("/sensor-registry/", (request, response) -> {
 			// TODO validation
 			final SensorRegistry sensorRegistry = SensorRegistry.fromJson(request.body());
-			final String redisResponse = this.jedis.set("sensor_registry", sensorRegistry.toJson());
+			final String json = sensorRegistry.toJson();
+			final String redisResponse = this.jedis.set("sensor_registry", json);
 			if ("OK".equals(redisResponse)) {
+				this.kafkaPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, json);
 				response.status(204);
 				return "";
 			} else {
@@ -66,6 +71,11 @@ public class ConfigurationService {
 		Spark.after((request, response) -> {
 			response.type("application/json");
 		});
+	}
+
+	public void stop() {
+		this.jedis.close();
+		this.kafkaPublisher.close();
 	}
 
 	public static void main(final String[] args) {
