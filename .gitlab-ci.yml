@@ -13,7 +13,7 @@ cache:
 
 before_script:
   - export GRADLE_USER_HOME=`pwd`/.gradle
-
+      
 build:
   stage: build
   tags:
@@ -22,3 +22,26 @@ build:
   artifacts:
     paths:
       - build/
+
+test:
+  stage: test
+  tags:
+    - dockerex
+  script: ./gradlew check
+  
+deploy:
+  stage: deploy
+  tags:
+    - dockerex
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build --pull -t titan-ccp-configuration .
+    - docker tag titan-ccp-configuration industrialdevops/titan-ccp-configuration:latest
+    - docker tag titan-ccp-configuration industrialdevops/titan-ccp-configuration:$(date +%Y%m%d%H%M%S)
+    - echo $DOCKERHUB_PW | docker login -u $DOCKERHUB_ID --password-stdin
+    - docker push industrialdevops/titan-ccp-configuration
+    - docker logout
+  only:
+    - master
