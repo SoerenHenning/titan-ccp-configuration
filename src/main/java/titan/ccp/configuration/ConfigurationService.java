@@ -47,7 +47,7 @@ public class ConfigurationService {
 			});
 		}
 
-		Spark.get("/sensor-registry/", (request, response) -> {
+		Spark.get("/sensor-registry", (request, response) -> {
 			final String redisResponse = this.jedis.get("sensor_registry");
 			if (redisResponse == null) {
 				response.status(500);
@@ -57,7 +57,7 @@ public class ConfigurationService {
 			}
 		});
 
-		Spark.put("/sensor-registry/", (request, response) -> {
+		Spark.put("/sensor-registry", (request, response) -> {
 			// TODO validation
 			final SensorRegistry sensorRegistry = SensorRegistry.fromJson(request.body());
 			final String json = sensorRegistry.toJson();
