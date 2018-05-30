@@ -37,6 +37,7 @@ public class KafkaPublisher implements EventPublisher {
 		this.producer.send(record);
 	}
 
+	@Override
 	public void close() {
 		this.producer.close();
 	}

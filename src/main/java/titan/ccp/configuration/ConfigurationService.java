@@ -16,7 +16,7 @@ public class ConfigurationService {
 	public ConfigurationService() {
 		this.jedis = new Jedis(this.config.getString("redis.host"), this.config.getInt("redis.port"));
 		if (this.config.getBoolean("event.publishing")) {
-			this.eventPublisher = new KafkaPublisher(this.config.getString("kafka.boostrap.servers"),
+			this.eventPublisher = new KafkaPublisher(this.config.getString("kafka.bootstrap.servers"),
 					this.config.getString("kafka.topic"));
 		} else {
 			this.eventPublisher = new NoopPublisher();
