@@ -5,6 +5,10 @@ import org.apache.commons.configuration2.Configuration;
 import redis.clients.jedis.Jedis;
 import spark.Spark;
 import titan.ccp.common.configuration.Configurations;
+import titan.ccp.configuration.events.Event;
+import titan.ccp.configuration.events.EventPublisher;
+import titan.ccp.configuration.events.KafkaPublisher;
+import titan.ccp.configuration.events.NoopPublisher;
 import titan.ccp.model.sensorregistry.SensorRegistry;
 
 public class ConfigurationService {

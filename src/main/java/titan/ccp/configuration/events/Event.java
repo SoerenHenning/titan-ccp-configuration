@@ -1,4 +1,4 @@
-package titan.ccp.configuration;
+package titan.ccp.configuration.events;
 
 public enum Event {
 

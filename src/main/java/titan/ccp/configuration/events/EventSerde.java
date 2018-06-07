@@ -1,4 +1,4 @@
-package titan.ccp.configuration;
+package titan.ccp.configuration.events;
 
 import java.nio.ByteBuffer;
 import java.util.Map;

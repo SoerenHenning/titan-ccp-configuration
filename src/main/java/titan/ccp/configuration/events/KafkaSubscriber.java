@@ -1,4 +1,4 @@
-package titan.ccp.configuration;
+package titan.ccp.configuration.events;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,12 +16,6 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 
 public class KafkaSubscriber {
 
-	private static final String BOOTSTRAP_SERVERS = "127.0.0.1:9092";
-
-	private static final String GROUP_ID = "test-2";
-
-	private static final String TOPIC_NAME = "test-soeren--3";
-
 	private final KafkaConsumer<Event, String> consumer;
 
 	private final String topicName;
@@ -31,17 +25,16 @@ public class KafkaSubscriber {
 	private volatile boolean terminationRequested = false;
 	private final CompletableFuture<Void> terminationRequestResult = new CompletableFuture<>();
 
-	public KafkaSubscriber() {
+	public KafkaSubscriber(final String bootstrapServers, final String groupId, final String topicName) {
 		final Properties properties = new Properties();
-
-		properties.put("bootstrap.servers", BOOTSTRAP_SERVERS);
-		properties.put("group.id", GROUP_ID);
+		properties.put("bootstrap.servers", bootstrapServers);
+		properties.put("group.id", groupId);
 		// properties.put("enable.auto.commit", this.enableAutoCommit);
 		// properties.put("auto.commit.interval.ms", this.autoCommitIntervalMs);
 		// properties.put("session.timeout.ms", this.sessionTimeoutMs);
 
 		this.consumer = new KafkaConsumer<>(properties, EventSerde.deserializer(), new StringDeserializer());
-		this.topicName = TOPIC_NAME;
+		this.topicName = topicName;
 
 		this.run();
 	}
