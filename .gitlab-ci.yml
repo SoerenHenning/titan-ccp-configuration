@@ -27,7 +27,7 @@ test:
   stage: test
   tags:
     - dockerex
-  script: ./gradlew check
+  script: ./gradlew test
   
 deploy:
   stage: deploy
