@@ -21,13 +21,16 @@ build:
   script: ./gradlew --build-cache assemble
   artifacts:
     paths:
-      - build/
+    paths:
+      - build/libs/*.jar
+      - build/distributions/*.tar
+    expire_in: 1 day
 
 test:
   stage: test
   tags:
     - dockerex
-  script: ./gradlew check
+  script: ./gradlew test
   
 deploy:
   stage: deploy
