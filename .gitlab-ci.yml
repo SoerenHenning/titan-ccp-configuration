@@ -44,6 +44,18 @@ checkstyle:
     - dockerex
   script: ./gradlew checkstyle
   
+pmd:
+  stage: check
+  tags:
+    - dockerex
+  script: ./gradlew pmd
+  
+spotbugs:
+  stage: check
+  tags:
+    - dockerex
+  script: ./gradlew spotbugs
+  
 deploy:
   stage: deploy
   tags:
