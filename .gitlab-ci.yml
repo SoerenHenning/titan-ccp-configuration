@@ -13,7 +13,13 @@ cache:
 
 before_script:
   - export GRADLE_USER_HOME=`pwd`/.gradle
-      
+
+stages:
+  - build
+  - test
+  - check
+  - deploy
+
 build:
   stage: build
   tags:
@@ -31,6 +37,12 @@ test:
   tags:
     - dockerex
   script: ./gradlew test
+  
+checkstyle:
+  stage: check
+  tags:
+    - dockerex
+  script: ./gradlew checkstyle
   
 deploy:
   stage: deploy
