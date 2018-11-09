@@ -1,0 +1,62 @@
+{
+    "identifier": "root",
+    "name": "My Company",
+    "children": [
+        {
+            "identifier": "comcenter",
+            "name": "Computing Center",
+            "children": [
+                {
+                    "identifier": "server1",
+                    "name": "Server 1"
+                },
+                {
+                    "identifier": "server2",
+                    "name": "Server 2"
+                },
+                {
+                    "identifier": "server3",
+                    "name": "Server 3"
+                }
+            ]
+        },
+        {
+            "identifier": "printers",
+            "name": "Printing",
+            "children": [
+                {
+                    "identifier": "printer1",
+                    "name": "Printer 1"
+                },
+                {
+                    "identifier": "printer2",
+                    "name": "Printer 2"
+                }
+            ]
+        },
+        {
+            "identifier": "cooling",
+            "name": "Cooling",
+            "children": [
+                {
+                    "identifier": "fan1",
+                    "name": "Main Fan"
+                },
+                {
+                    "identifier": "ac",
+                    "name": "AC System",
+                    "children": [
+                        {
+                            "identifier": "ac1",
+                            "name": "AC 1"
+                        },
+                        {
+                            "identifier": "ac2",
+                            "name": "AC 2"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
