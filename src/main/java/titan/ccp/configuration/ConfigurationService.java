@@ -1,5 +1,9 @@
 package titan.ccp.configuration;
 
+import com.google.common.base.Charsets;
+import com.google.common.io.Resources;
+import java.io.IOException;
+import java.net.URL;
 import org.apache.commons.configuration2.Configuration;
 import redis.clients.jedis.Jedis;
 import spark.Spark;
@@ -23,6 +27,7 @@ public class ConfigurationService {
   private static final String SENSOR_REGISTRY_PATH = "/sensor-registry";
 
   private static final String INTERNAL_SERVER_ERROR_MESSAGE = "Internal Server Error";
+  private static final String ACCESS_FORBIDDEN_MESSAGE = "Access forbidden";
 
   private final Configuration config = Configurations.create();
   private final Jedis jedis;
@@ -34,6 +39,7 @@ public class ConfigurationService {
    */
   public ConfigurationService() {
     this.jedis = new Jedis(this.config.getString("redis.host"), this.config.getInt("redis.port"));
+
     if (this.config.getBoolean("event.publishing")) {
       this.eventPublisher = new KafkaPublisher(this.config.getString("kafka.bootstrap.servers"),
           this.config.getString("kafka.topic"));
@@ -46,6 +52,8 @@ public class ConfigurationService {
    * Start the service by starting the underlying web server.
    */
   public void start() {
+    this.setDefaultSensorRegistry();
+
     Spark.port(this.config.getInt("webserver.port"));
 
     if (this.config.getBoolean("webserver.cors")) {
@@ -81,17 +89,22 @@ public class ConfigurationService {
     });
 
     Spark.put(SENSOR_REGISTRY_PATH, (request, response) -> {
-      // TODO validation
-      final SensorRegistry sensorRegistry = SensorRegistry.fromJson(request.body());
-      final String json = sensorRegistry.toJson();
-      final String redisResponse = this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, json);
-      if ("OK".equals(redisResponse)) {
-        this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, json);
-        response.status(204); // NOCS HTTP response code
-        return "";
+      if (this.config.getBoolean("demo")) { // NOCS
+        response.status(403); // NOCS HTTP response code
+        return ACCESS_FORBIDDEN_MESSAGE;
       } else {
-        response.status(500); // NOCS HTTP response code
-        return INTERNAL_SERVER_ERROR_MESSAGE;
+        // TODO validation
+        final SensorRegistry sensorRegistry = SensorRegistry.fromJson(request.body());
+        final String json = sensorRegistry.toJson();
+        final String redisResponse = this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, json);
+        if ("OK".equals(redisResponse)) {
+          this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, json);
+          response.status(204); // NOCS HTTP response code
+          return "";
+        } else {
+          response.status(500); // NOCS HTTP response code
+          return INTERNAL_SERVER_ERROR_MESSAGE;
+        }
       }
     });
 
@@ -103,6 +116,19 @@ public class ConfigurationService {
   public void stop() {
     this.jedis.close();
     this.eventPublisher.close();
+  }
+
+  private void setDefaultSensorRegistry() {
+    if (this.config.getBoolean("demo")) { // NOCS
+      final String sensorRegistry; // NOPMD
+      try {
+        final URL url = Resources.getResource("demo_sensor_registry.json");
+        sensorRegistry = Resources.toString(url, Charsets.UTF_8); // NOPMD
+      } catch (final IOException e) {
+        throw new IllegalStateException(e);
+      }
+      this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
+    }
   }
 
   public static void main(final String[] args) {
