@@ -5,6 +5,8 @@ import com.google.common.io.Resources;
 import java.io.IOException;
 import java.net.URL;
 import org.apache.commons.configuration2.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import spark.Spark;
 import titan.ccp.common.configuration.Configurations;
@@ -22,6 +24,8 @@ import titan.ccp.model.sensorregistry.SensorRegistry;
  */
 public class ConfigurationService {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(ConfigurationService.class);
+
   private static final String REDIS_SENSOR_REGISTRY_KEY = "sensor_registry";
 
   private static final String SENSOR_REGISTRY_PATH = "/sensor-registry";
@@ -38,6 +42,13 @@ public class ConfigurationService {
    * externally (environment variables or a .properties file).
    */
   public ConfigurationService() {
+    final long startupWait = this.config.getLong("startup.wait.ms");
+    LOGGER.info("Wait for {} ms to connect to redis.", startupWait);
+    try {
+      Thread.sleep(startupWait);
+    } catch (final InterruptedException e) {
+      throw new IllegalStateException(e);
+    }
     this.jedis = new Jedis(this.config.getString("redis.host"), this.config.getInt("redis.port"));
 
     if (this.config.getBoolean("event.publishing")) {
