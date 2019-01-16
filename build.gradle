@@ -5,8 +5,8 @@ apply plugin: 'checkstyle'
 apply plugin: 'com.github.spotbugs'
 apply plugin: 'eclipse'
 
-sourceCompatibility = "1.10"
-targetCompatibility = "1.10"
+sourceCompatibility = "1.11"
+targetCompatibility = "1.11"
 
 buildscript {
   repositories {

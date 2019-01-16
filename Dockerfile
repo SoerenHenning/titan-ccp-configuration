@@ -1,4 +1,4 @@
-FROM openjdk:10-slim
+FROM openjdk:11-slim
 
 ADD build/distributions/titanccp-configuration.tar /
 
