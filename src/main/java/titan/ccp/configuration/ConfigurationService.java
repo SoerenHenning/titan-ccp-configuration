@@ -105,7 +105,7 @@ public class ConfigurationService {
     });
 
     Spark.put(SENSOR_REGISTRY_PATH, (request, response) -> {
-      if (!this.config.getBoolean("demo")) { // NOCS
+      if (this.config.getBoolean("demo")) { // NOCS
         response.status(403); // NOCS HTTP response code
         return ACCESS_FORBIDDEN_MESSAGE;
       } else {
