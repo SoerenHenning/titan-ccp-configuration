@@ -65,6 +65,11 @@ public class ConfigurationService {
   public void start() {
     this.setDefaultSensorRegistry();
 
+    final String currentSensorRegistry = this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
+    if (currentSensorRegistry != null) {
+      this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, currentSensorRegistry);
+    }
+
     Spark.port(this.config.getInt("webserver.port"));
 
     if (this.config.getBoolean("webserver.cors")) {
@@ -100,7 +105,7 @@ public class ConfigurationService {
     });
 
     Spark.put(SENSOR_REGISTRY_PATH, (request, response) -> {
-      if (this.config.getBoolean("demo")) { // NOCS
+      if (!this.config.getBoolean("demo")) { // NOCS
         response.status(403); // NOCS HTTP response code
         return ACCESS_FORBIDDEN_MESSAGE;
       } else {
