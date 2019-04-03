@@ -139,7 +139,7 @@ public class ConfigurationService {
       final String sensorRegistry; // NOPMD
       try {
         final URL url = Resources.getResource("demo_sensor_registry.json");
-        sensorRegistry = Resources.toString(url, StandardCharsets.UTF_8);
+        sensorRegistry = Resources.toString(url, StandardCharsets.UTF_8); // NOPMD
       } catch (final IOException e) {
         throw new IllegalStateException(e);
       }
