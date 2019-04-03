@@ -1,9 +1,9 @@
 package titan.ccp.configuration;
 
-import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import org.apache.commons.configuration2.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -139,7 +139,7 @@ public class ConfigurationService {
       final String sensorRegistry; // NOPMD
       try {
         final URL url = Resources.getResource("demo_sensor_registry.json");
-        sensorRegistry = Resources.toString(url, Charsets.UTF_8); // NOPMD
+        sensorRegistry = Resources.toString(url, StandardCharsets.UTF_8);
       } catch (final IOException e) {
         throw new IllegalStateException(e);
       }
