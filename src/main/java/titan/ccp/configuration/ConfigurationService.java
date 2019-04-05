@@ -64,7 +64,7 @@ public class ConfigurationService {
    * Start the service by starting the underlying web server.
    */
   public void start() {
-    if (this.config.getBoolean("demo")) {
+    if (this.config.getBoolean("demo")) { // NOCS
       LOGGER.info("Running in demo mode.");
     }
     this.setDefaultSensorRegistry();
@@ -139,7 +139,7 @@ public class ConfigurationService {
   }
 
   private void setDefaultSensorRegistry() {
-    final boolean isDemo = this.config.getBoolean("demo");
+    final boolean isDemo = this.config.getBoolean("demo"); // NOCS
     final String sensorRegistry =
         isDemo ? this.getDemoSensorRegsitry() : this.getEmptySensorRegsitry();
     this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
