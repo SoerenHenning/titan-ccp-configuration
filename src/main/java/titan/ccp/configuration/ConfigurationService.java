@@ -14,6 +14,7 @@ import titan.ccp.configuration.events.Event;
 import titan.ccp.configuration.events.EventPublisher;
 import titan.ccp.configuration.events.KafkaPublisher;
 import titan.ccp.configuration.events.NoopPublisher;
+import titan.ccp.model.sensorregistry.MutableSensorRegistry;
 import titan.ccp.model.sensorregistry.SensorRegistry;
 
 /**
@@ -63,6 +64,9 @@ public class ConfigurationService {
    * Start the service by starting the underlying web server.
    */
   public void start() {
+    if (this.config.getBoolean("demo")) {
+      LOGGER.info("Running in demo mode.");
+    }
     this.setDefaultSensorRegistry();
 
     final String currentSensorRegistry = this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
@@ -135,16 +139,24 @@ public class ConfigurationService {
   }
 
   private void setDefaultSensorRegistry() {
-    if (this.config.getBoolean("demo")) { // NOCS
-      final String sensorRegistry; // NOPMD
-      try {
-        final URL url = Resources.getResource("demo_sensor_registry.json");
-        sensorRegistry = Resources.toString(url, StandardCharsets.UTF_8); // NOPMD
-      } catch (final IOException e) {
-        throw new IllegalStateException(e);
-      }
-      this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
+    final boolean isDemo = this.config.getBoolean("demo");
+    final String sensorRegistry =
+        isDemo ? this.getDemoSensorRegsitry() : this.getEmptySensorRegsitry();
+    this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
+    LOGGER.info("Set sensor registry");
+  }
+
+  private String getDemoSensorRegsitry() {
+    try {
+      final URL url = Resources.getResource("demo_sensor_registry.json");
+      return Resources.toString(url, StandardCharsets.UTF_8);
+    } catch (final IOException e) {
+      throw new IllegalStateException(e);
     }
+  }
+
+  private String getEmptySensorRegsitry() {
+    return new MutableSensorRegistry("root").toJson();
   }
 
   public static void main(final String[] args) {
