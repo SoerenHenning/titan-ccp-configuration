@@ -139,11 +139,25 @@ public class ConfigurationService {
   }
 
   private void setDefaultSensorRegistry() {
-    final boolean isDemo = this.config.getBoolean("demo"); // NOCS
-    final String sensorRegistry =
-        isDemo ? this.getDemoSensorRegsitry() : this.getEmptySensorRegsitry();
+    // final boolean isDemo = this.config.getBoolean("demo"); // NOCS
+    // this.getDefaultSensorRegsitry();
+    final String sensorRegistry = this.getDefaultSensorRegsitry();
+    // isDemo ? this.getDemoSensorRegsitry() : this.getEmptySensorRegsitry();
     this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
     LOGGER.info("Set sensor registry");
+  }
+
+  private String getDefaultSensorRegsitry() {
+    if (this.config.getBoolean("demo")) { // NOCS
+      return this.getDemoSensorRegsitry();
+    } else {
+      final String initial = this.getInitialSensorRegsitry();
+      if (initial != null) {
+        return initial;
+      } else {
+        return this.getEmptySensorRegsitry();
+      }
+    }
   }
 
   private String getDemoSensorRegsitry() {
@@ -157,6 +171,10 @@ public class ConfigurationService {
 
   private String getEmptySensorRegsitry() {
     return new MutableSensorRegistry("root").toJson();
+  }
+
+  private String getInitialSensorRegsitry() {
+    return this.config.getString("initial.sensor.registry");
   }
 
   public static void main(final String[] args) {
