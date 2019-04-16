@@ -152,10 +152,10 @@ public class ConfigurationService {
       return this.getDemoSensorRegsitry();
     } else {
       final String initial = this.getInitialSensorRegsitry();
-      if (initial != null) {
-        return initial;
-      } else {
+      if (initial == null) {
         return this.getEmptySensorRegsitry();
+      } else {
+        return initial;
       }
     }
   }
