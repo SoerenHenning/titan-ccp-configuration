@@ -7,8 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
-import net.jodah.failsafe.event.ExecutionAttemptedEvent;
-import net.jodah.failsafe.event.ExecutionCompletedEvent;
 import org.apache.commons.configuration2.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +41,7 @@ public class ConfigurationService {
   private final Configuration config = Configurations.create();
   private Jedis jedis;
   private final EventPublisher eventPublisher;
+  private final RetryPolicy<Object> retryPolicy = new RetryPolicy<>();
 
   /**
    * Create a new instance of the {@link ConfigurationService} using parameters configured
@@ -57,20 +56,24 @@ public class ConfigurationService {
       throw new IllegalStateException(e);
     }
 
-    // prepare redis connection, close every broken connection.
-    final RetryPolicy<Object> retryPolicy = new RetryPolicy<>();
-    retryPolicy.handle(JedisConnectionException.class).withDelay(Duration.ofSeconds(1))
-        .withMaxRetries(-1)
-        .withDelay(Duration.ofSeconds(1))
-        .onFailedAttempt((final ExecutionAttemptedEvent<Object> e) -> {
-          this.jedis.close();
-          LOGGER.warn("Redis not available. Will retry in 1000ms.");
-        })
-        .onSuccess((final ExecutionCompletedEvent<Object> e) -> LOGGER.info("Connected to redis"));
+    // setup redis connection
+    this.jedis = new Jedis(this.config.getString("redis.host"), this.config.getInt("redis.port"));
 
-    // check if connection was successful, retry if not.
-    Failsafe.with(retryPolicy).run(() -> {
-      this.jedis = new Jedis(this.config.getString("redis.host"), this.config.getInt("redis.port"));
+    // setup failsafe for redis
+    final int delay = this.config.getInt("failsafe.delayInMillis");
+    this.retryPolicy.handle(JedisConnectionException.class)
+        .withDelay(Duration.ofMillis(delay))
+        .withMaxRetries(this.config.getInt("failsafe.maxRetries"))
+        .onFailedAttempt(i -> {
+          this.jedis.close();
+          this.jedis =
+              new Jedis(this.config.getString("redis.host"), this.config.getInt("redis.port"));
+          LOGGER.warn("Redis not available. Will retry in " + delay + "ms.");
+        })
+        .onSuccess(i -> LOGGER.info("Connected to redis"));
+
+    // check if connection was successful.
+    Failsafe.with(this.retryPolicy).run(() -> {
       this.jedis.ping();
     });
 
@@ -91,7 +94,10 @@ public class ConfigurationService {
     }
     this.setDefaultSensorRegistry();
 
-    final String currentSensorRegistry = this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
+
+    final String currentSensorRegistry = Failsafe.with(this.retryPolicy)
+        .get(() -> this.jedis.get(REDIS_SENSOR_REGISTRY_KEY));
+
     if (currentSensorRegistry != null) {
       this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, currentSensorRegistry);
     }
@@ -121,7 +127,15 @@ public class ConfigurationService {
     }
 
     Spark.get(SENSOR_REGISTRY_PATH, (request, response) -> {
-      final String redisResponse = this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
+      final String redisResponse;
+      try {
+        redisResponse = this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
+      } catch (final JedisConnectionException e) {
+        LOGGER.error("failed to connect to redis instance");
+        response.status(500);
+        return INTERNAL_SERVER_ERROR_MESSAGE;
+      }
+
       if (redisResponse == null) {
         response.status(500); // NOCS HTTP response code
         return INTERNAL_SERVER_ERROR_MESSAGE;
@@ -138,7 +152,14 @@ public class ConfigurationService {
         // TODO validation
         final SensorRegistry sensorRegistry = SensorRegistry.fromJson(request.body());
         final String json = sensorRegistry.toJson();
-        final String redisResponse = this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, json);
+        final String redisResponse;
+        try {
+          redisResponse = this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, json);
+        } catch (final JedisConnectionException e) {
+          LOGGER.error("failed to connect to redis instance");
+          response.status(500);
+          return INTERNAL_SERVER_ERROR_MESSAGE;
+        }
         if ("OK".equals(redisResponse)) {
           this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, json);
           response.status(204); // NOCS HTTP response code
@@ -163,12 +184,13 @@ public class ConfigurationService {
   private void setDefaultSensorRegistry() {
     final boolean isDemo = this.config.getBoolean("demo"); // NOCS
     final String sensorRegistry =
-        isDemo ? this.getDemoSensorRegsitry() : this.getEmptySensorRegsitry();
-    this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
+        isDemo ? this.getDemoSensorRegistry() : this.getEmptySensorRegsitry();
+    Failsafe.with(this.retryPolicy)
+        .run(() -> this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry));
     LOGGER.info("Set sensor registry");
   }
 
-  private String getDemoSensorRegsitry() {
+  private String getDemoSensorRegistry() {
     try {
       final URL url = Resources.getResource("demo_sensor_registry.json");
       return Resources.toString(url, StandardCharsets.UTF_8);
