@@ -8,6 +8,7 @@ import net.jodah.failsafe.RetryPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Service;
+import titan.ccp.configuration.ConfigurationRepository.ConfigurationRepositoryException;
 import titan.ccp.configuration.events.Event;
 import titan.ccp.configuration.events.EventPublisher;
 import titan.ccp.configuration.events.KafkaPublisher;
@@ -58,7 +59,7 @@ public final class RestApiServer {
 
 
   private void setDefaultSensorRegistry() {
-    final boolean isDemo = this.config.DEMO; // NOCS
+    final boolean isDemo = this.config.DEMO;
     final String sensorRegistry =
         isDemo ? this.getDemoSensorRegistry() : this.getEmptySensorRegistry();
     this.configurationRepository.putConfigurationSafe(sensorRegistry);
@@ -86,11 +87,17 @@ public final class RestApiServer {
     }
 
     this.webService.get(SENSOR_REGISTRY_PATH, (request, response) -> {
-      // TODO try catch
-      return this.configurationRepository.getConfiguration();
+      try {
+        return this.configurationRepository.getConfiguration();
+      } catch (final ConfigurationRepositoryException e) {
+        response.status(500); // NOCS HTTP response code
+        return INTERNAL_SERVER_ERROR_MESSAGE;
+      }
     });
 
-    this.webService.put(SENSOR_REGISTRY_PATH, (request, response) -> {
+    this.webService.put(SENSOR_REGISTRY_PATH, (request, response) ->
+
+    {
       if (this.config.DEMO) {
         response.status(403); // NOCS HTTP response code
         return ACCESS_FORBIDDEN_MESSAGE;
@@ -100,16 +107,16 @@ public final class RestApiServer {
       final SensorRegistry sensorRegistry = SensorRegistry.fromJson(request.body());
       final String json = sensorRegistry.toJson();
 
-      // TODO try catch
-      final String repositoryResponse = this.configurationRepository.putConfiguration(json);
-      if ("OK".equals(repositoryResponse)) {
-        this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, json);
-        response.status(204); // NOCS HTTP response code
-        return "";
-      } else {
+      try {
+        this.configurationRepository.putConfiguration(json);
+      } catch (final ConfigurationRepositoryException e) {
         response.status(500); // NOCS HTTP response code
         return INTERNAL_SERVER_ERROR_MESSAGE;
       }
+
+      this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, json);
+      response.status(204); // NOCS HTTP response code
+      return "";
     });
 
   }

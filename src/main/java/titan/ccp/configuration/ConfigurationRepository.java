@@ -71,10 +71,15 @@ public final class ConfigurationRepository {
    * @return
    * @throws ConfigurationRepositoryException
    */
-  public String putConfiguration(final String sensorRegistry)
+  public void putConfiguration(final String sensorRegistry)
       throws ConfigurationRepositoryException {
     try {
-      return this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
+      final String response = this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
+      if ("OK".equals(response)) {
+        return;
+      } else {
+        throw new ConfigurationRepositoryException();
+      }
     } catch (final JedisConnectionException e) {
       LOGGER.error(REDIS_CONNECTION_ERROR_MESSAGE);
       throw new ConfigurationRepositoryException();
@@ -82,7 +87,8 @@ public final class ConfigurationRepository {
   }
 
   /**
-   * Set default configuration to the database.
+   * Set default configuration to the database. The operation is encapsulated by the failsafe
+   * framework.
    *
    * @param sensorRegistry
    * @return
@@ -98,7 +104,7 @@ public final class ConfigurationRepository {
 
   /**
    * Get a new {@link Jedis} instance. This method should be called when the old Jedis instance is
-   * broken.
+   * broken, e.g. due to an connection failure.
    *
    * @return A new {@link Jedis} instance.
    */
