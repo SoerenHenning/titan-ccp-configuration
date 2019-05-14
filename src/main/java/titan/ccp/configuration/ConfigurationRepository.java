@@ -8,18 +8,25 @@ import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 
+/**
+ * Wrapper for the database access for the sensor registry.
+ */
 public final class ConfigurationRepository {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ConfigurationRepository.class);
 
-  private final Jedis jedis;
-  private final Config config = Config.create();
-
-  private RetryPolicy<Object> jedisRetryPolicy;
   private static final String REDIS_SENSOR_REGISTRY_KEY = "sensor_registry";
+
   private static final String REDIS_CONNECTION_ERROR_MESSAGE =
       "Failed to connect to redis instance.";
 
+  private final Jedis jedis;
+
+  private RetryPolicy<Object> jedisRetryPolicy;
+
+  /**
+   * Create the repository.
+   */
   public ConfigurationRepository() {
 
     // setup failsafe for redis
@@ -39,13 +46,14 @@ public final class ConfigurationRepository {
    * Sets up a connection to redis that is encapsulated by the failsafe-framework.
    */
   public void setupFailsafe() {
+    this.jedisRetryPolicy = new RetryPolicy<>();
     this.jedisRetryPolicy.handle(JedisConnectionException.class)
-        .withDelay(Duration.ofMillis(this.config.FAILSAFE_DELAYINMILLIS))
-        .withMaxRetries(this.config.FAILSAFE_MAXRETRIES)
+        .withDelay(Duration.ofMillis(Config.FAILSAFE_DELAYINMILLIS))
+        .withMaxRetries(Config.FAILSAFE_MAXRETRIES)
         .onFailedAttempt(i -> {
           this.jedis.close();
           LOGGER.warn("Redis not available. Will retry in {} ms.",
-              this.config.FAILSAFE_DELAYINMILLIS);
+              Config.FAILSAFE_DELAYINMILLIS);
         })
         .onSuccess(i -> LOGGER.info("Connected to redis"));
   }
@@ -60,16 +68,16 @@ public final class ConfigurationRepository {
     try {
       return this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
     } catch (final JedisConnectionException e) {
-      throw new ConfigurationRepositoryException();
+      LOGGER.error(REDIS_CONNECTION_ERROR_MESSAGE);
+      throw new ConfigurationRepositoryException(); // NOPMD
     }
   }
 
   /**
    * Save a configuration to the database.
    *
-   * @param sensorRegistry
-   * @return
-   * @throws ConfigurationRepositoryException
+   * @param sensorRegistry The sensor-registry that should be persisted.
+   * @throws ConfigurationRepositoryException When an error occurs in the repository.
    */
   public void putConfiguration(final String sensorRegistry)
       throws ConfigurationRepositoryException {
@@ -82,7 +90,7 @@ public final class ConfigurationRepository {
       }
     } catch (final JedisConnectionException e) {
       LOGGER.error(REDIS_CONNECTION_ERROR_MESSAGE);
-      throw new ConfigurationRepositoryException();
+      throw new ConfigurationRepositoryException(); // NOPMD
     }
   }
 
@@ -90,14 +98,11 @@ public final class ConfigurationRepository {
    * Set default configuration to the database. The operation is encapsulated by the failsafe
    * framework.
    *
-   * @param sensorRegistry
-   * @return
-   * @throws ConfigurationRepositoryException
+   * @param sensorRegistry The sensor-registry that should be persisted.
    */
-  public String putConfigurationSafe(final String sensorRegistry) {
-
-    return Failsafe.with(this.jedisRetryPolicy)
-        .get(() -> this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry));
+  public void putConfigurationSafe(final String sensorRegistry) {
+    Failsafe.with(this.jedisRetryPolicy)
+        .run(() -> this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry));
   }
 
 
@@ -109,10 +114,16 @@ public final class ConfigurationRepository {
    * @return A new {@link Jedis} instance.
    */
   public Jedis getJedisInstance() {
-    return new Jedis(this.config.REDIS_HOST,
-        this.config.REDIS_PORT);
+    return new Jedis(Config.REDIS_HOST,
+        Config.REDIS_PORT);
   }
 
+  /**
+   * Special exception for errors that might occur in this repository.
+   *
+   */
+  @SuppressWarnings("serial")
   public class ConfigurationRepositoryException extends Exception {
+
   }
 }

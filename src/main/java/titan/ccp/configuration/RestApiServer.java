@@ -4,7 +4,6 @@ import com.google.common.io.Resources;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import net.jodah.failsafe.RetryPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Service;
@@ -16,26 +15,26 @@ import titan.ccp.configuration.events.NoopPublisher;
 import titan.ccp.model.sensorregistry.MutableSensorRegistry;
 import titan.ccp.model.sensorregistry.SensorRegistry;
 
+/**
+ * Webserver for the Configuration microservice.
+ */
 public final class RestApiServer {
 
-  private final Config config = Config.create();
-
   private static final Logger LOGGER = LoggerFactory.getLogger(RestApiServer.class);
-  private final Service webService;
-  private final boolean enableCors;
-
-  private static final String SENSOR_REGISTRY_PATH = "/sensor-registry";
 
   private static final String ACCESS_FORBIDDEN_MESSAGE = "Access forbidden";
 
   private static final String INTERNAL_SERVER_ERROR_MESSAGE = "Internal Server Error";
 
+  private static final String SENSOR_REGISTRY_PATH = "/sensor-registry";
+
   private final EventPublisher eventPublisher;
 
   private final ConfigurationRepository configurationRepository = new ConfigurationRepository();
 
-  private RetryPolicy<Object> jedisRetryPolicy;
+  private final Service webService;
 
+  private final boolean enableCors;
 
   /**
    * Creates a new webserver.
@@ -46,9 +45,9 @@ public final class RestApiServer {
     this.enableCors = enableCors;
 
     // setup event publishing
-    if (this.config.EVENT_PUBLISHING) {
+    if (Config.EVENT_PUBLISHING) {
       this.eventPublisher =
-          new KafkaPublisher(this.config.KAFKA_BOOTSTRAP_SERVERS, this.config.KAFKA_TOPIC);
+          new KafkaPublisher(Config.KAFKA_BOOTSTRAP_SERVERS, Config.KAFKA_TOPIC);
     } else {
       this.eventPublisher = new NoopPublisher();
     }
@@ -58,14 +57,22 @@ public final class RestApiServer {
   }
 
 
+  /**
+   * Set the sensor-registry to default.
+   */
   private void setDefaultSensorRegistry() {
-    final boolean isDemo = this.config.DEMO;
+    final boolean isDemo = Config.DEMO;
     final String sensorRegistry =
         isDemo ? this.getDemoSensorRegistry() : this.getEmptySensorRegistry();
     this.configurationRepository.putConfigurationSafe(sensorRegistry);
     LOGGER.info("Set sensor registry");
   }
 
+  /**
+   * Get the demo sensor-registry.
+   *
+   * @return The Demo Sensor-Registry
+   */
   private String getDemoSensorRegistry() {
     try {
       final URL url = Resources.getResource("demo_sensor_registry.json");
@@ -75,15 +82,23 @@ public final class RestApiServer {
     }
   }
 
+  /**
+   * Get the empty sensor-registry.
+   *
+   * @return
+   */
   private String getEmptySensorRegistry() {
     return new MutableSensorRegistry("root").toJson();
   }
 
+  /**
+   * Starts the service-api.
+   */
   public void start() {
     LOGGER.info("Starting API server");
 
     if (this.enableCors) {
-      this.enableCors();
+      this.enableCorsHeaders();
     }
 
     this.webService.get(SENSOR_REGISTRY_PATH, (request, response) -> {
@@ -95,10 +110,8 @@ public final class RestApiServer {
       }
     });
 
-    this.webService.put(SENSOR_REGISTRY_PATH, (request, response) ->
-
-    {
-      if (this.config.DEMO) {
+    this.webService.put(SENSOR_REGISTRY_PATH, (request, response) -> {
+      if (Config.DEMO) {
         response.status(403); // NOCS HTTP response code
         return ACCESS_FORBIDDEN_MESSAGE;
       }
@@ -121,7 +134,10 @@ public final class RestApiServer {
 
   }
 
-  private void enableCors() {
+  /**
+   * Enable cors and set headers.
+   */
+  private void enableCorsHeaders() {
 
     this.webService.options("/*", (request, response) -> {
 
