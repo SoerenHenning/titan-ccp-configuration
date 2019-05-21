@@ -7,6 +7,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
+import titan.ccp.configuration.events.Event;
+import titan.ccp.configuration.events.EventPublisher;
+import titan.ccp.configuration.events.KafkaPublisher;
+import titan.ccp.configuration.events.NoopPublisher;
 
 /**
  * Wrapper for the database access for the sensor registry.
@@ -21,6 +25,8 @@ public final class ConfigurationRepository {
       "Failed to connect to redis instance.";
 
   private final Jedis jedis;
+
+  private final EventPublisher eventPublisher;
 
   private RetryPolicy<Object> jedisRetryPolicy;
 
@@ -40,6 +46,14 @@ public final class ConfigurationRepository {
       this.jedis.ping();
     });
 
+    // setup event publishing
+    if (Config.EVENT_PUBLISHING) {
+      this.eventPublisher =
+          new KafkaPublisher(Config.KAFKA_BOOTSTRAP_SERVERS, Config.KAFKA_TOPIC);
+    } else {
+      this.eventPublisher = new NoopPublisher();
+    }
+
   }
 
   /**
@@ -47,7 +61,7 @@ public final class ConfigurationRepository {
    */
   public void setupFailsafe() {
     this.jedisRetryPolicy = new RetryPolicy<>();
-    this.jedisRetryPolicy.handle(JedisConnectionException.class)
+    this.jedisRetryPolicy.handle(ConfigurationRepositoryException.class)
         .withDelay(Duration.ofMillis(Config.FAILSAFE_DELAYINMILLIS))
         .withMaxRetries(Config.FAILSAFE_MAXRETRIES)
         .onFailedAttempt(i -> {
@@ -79,7 +93,7 @@ public final class ConfigurationRepository {
    * @param sensorRegistry The sensor-registry that should be persisted.
    * @throws ConfigurationRepositoryException When an error occurs in the repository.
    */
-  public void putConfiguration(final String sensorRegistry)
+  private void putConfiguration(final String sensorRegistry)
       throws ConfigurationRepositoryException {
     try {
       final String response = this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
@@ -95,14 +109,30 @@ public final class ConfigurationRepository {
   }
 
   /**
-   * Set default configuration to the database. The operation is encapsulated by the failsafe
-   * framework.
+   * Save a configuration to the database.
+   *
+   * @param sensorRegistry The sensor-registry that should be persisted.
+   * @throws ConfigurationRepositoryException When an error occurs in the repository.
+   */
+  public void changeConfiguration(final String sensorRegistry)
+      throws ConfigurationRepositoryException {
+    this.putConfiguration(sensorRegistry);
+
+    this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, sensorRegistry);
+  }
+
+
+  /**
+   * Set initial configuration to the database. The operation is encapsulated and does not throw an
+   * exception.
    *
    * @param sensorRegistry The sensor-registry that should be persisted.
    */
-  public void putConfigurationSafe(final String sensorRegistry) {
+  public void setInitialConfiguration(final String sensorRegistry) {
     Failsafe.with(this.jedisRetryPolicy)
-        .run(() -> this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry));
+        .run(() -> this.putConfiguration(sensorRegistry));
+
+    this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, sensorRegistry);
   }
 
 

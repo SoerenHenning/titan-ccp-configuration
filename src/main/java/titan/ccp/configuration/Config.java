@@ -17,7 +17,7 @@ public final class Config { // NOPMD
   public static final boolean EVENT_PUBLISHING =
       Config.CONFIGURATION.getBoolean(ConfigurationKeys.EVENT_PUBLISHING);
   public static final String KAFKA_TOPIC =
-      Config.CONFIGURATION.getString(ConfigurationKeys.KAFKA_BOOTSTRAP_SERVERS);
+      Config.CONFIGURATION.getString(ConfigurationKeys.KAFKA_TOPIC);
   public static final String KAFKA_BOOTSTRAP_SERVERS =
       Config.CONFIGURATION.getString(ConfigurationKeys.KAFKA_BOOTSTRAP_SERVERS);
   public static final int FAILSAFE_DELAYINMILLIS =

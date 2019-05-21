@@ -8,10 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Service;
 import titan.ccp.configuration.ConfigurationRepository.ConfigurationRepositoryException;
-import titan.ccp.configuration.events.Event;
-import titan.ccp.configuration.events.EventPublisher;
-import titan.ccp.configuration.events.KafkaPublisher;
-import titan.ccp.configuration.events.NoopPublisher;
 import titan.ccp.model.sensorregistry.MutableSensorRegistry;
 import titan.ccp.model.sensorregistry.SensorRegistry;
 
@@ -28,8 +24,6 @@ public final class RestApiServer {
 
   private static final String SENSOR_REGISTRY_PATH = "/sensor-registry";
 
-  private final EventPublisher eventPublisher;
-
   private final ConfigurationRepository configurationRepository = new ConfigurationRepository();
 
   private final Service webService;
@@ -44,14 +38,6 @@ public final class RestApiServer {
     this.webService = Service.ignite().port(port);
     this.enableCors = enableCors;
 
-    // setup event publishing
-    if (Config.EVENT_PUBLISHING) {
-      this.eventPublisher =
-          new KafkaPublisher(Config.KAFKA_BOOTSTRAP_SERVERS, Config.KAFKA_TOPIC);
-    } else {
-      this.eventPublisher = new NoopPublisher();
-    }
-
     // load default sensor registry
     this.setDefaultSensorRegistry();
   }
@@ -64,7 +50,7 @@ public final class RestApiServer {
     final boolean isDemo = Config.DEMO;
     final String sensorRegistry =
         isDemo ? this.getDemoSensorRegistry() : this.getEmptySensorRegistry();
-    this.configurationRepository.putConfigurationSafe(sensorRegistry);
+    this.configurationRepository.setInitialConfiguration(sensorRegistry);
     LOGGER.info("Set sensor registry");
   }
 
@@ -121,13 +107,12 @@ public final class RestApiServer {
       final String json = sensorRegistry.toJson();
 
       try {
-        this.configurationRepository.putConfiguration(json);
+        this.configurationRepository.changeConfiguration(json);
       } catch (final ConfigurationRepositoryException e) {
         response.status(500); // NOCS HTTP response code
         return INTERNAL_SERVER_ERROR_MESSAGE;
       }
 
-      this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, json);
       response.status(204); // NOCS HTTP response code
       return "";
     });
