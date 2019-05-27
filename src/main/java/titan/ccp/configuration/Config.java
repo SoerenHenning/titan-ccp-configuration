@@ -6,7 +6,7 @@ import titan.ccp.common.configuration.Configurations;
 /**
  * Utility class that wraps the access to the config files.
  */
-public final class Config { // NOPMD
+public final class Config { // NOPMD utility class alert
 
   private static final Configuration CONFIGURATION = Configurations.create();
 

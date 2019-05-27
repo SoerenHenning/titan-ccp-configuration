@@ -5,9 +5,9 @@ package titan.ccp.configuration;
  */
 public final class ConfigurationKeys { // NOPMD
 
-  public static final String FAILSAFE_DELAYINMILLIS = "failsafe.delayInMillis";
+  public static final String FAILSAFE_DELAYINMILLIS = "db.delayInMillis";
 
-  public static final String FAILSAFE_MAXRETRIES = "failsafe.maxRetries";
+  public static final String FAILSAFE_MAXRETRIES = "db.maxRetries";
 
   public static final String EVENT_PUBLISHING = "event.publishing";
 

@@ -1,5 +1,9 @@
 package titan.ccp.configuration;
 
+import com.google.common.io.Resources;
+import java.io.IOException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
@@ -11,6 +15,7 @@ import titan.ccp.configuration.events.Event;
 import titan.ccp.configuration.events.EventPublisher;
 import titan.ccp.configuration.events.KafkaPublisher;
 import titan.ccp.configuration.events.NoopPublisher;
+import titan.ccp.model.sensorregistry.MutableSensorRegistry;
 
 /**
  * Wrapper for the database access for the sensor registry.
@@ -21,10 +26,20 @@ public final class ConfigurationRepository {
 
   private static final String REDIS_SENSOR_REGISTRY_KEY = "sensor_registry";
 
-  private static final String REDIS_CONNECTION_ERROR_MESSAGE =
+  private static final String REDIS_CONNECTION_ERR =
       "Failed to connect to redis instance.";
 
-  private final Jedis jedis;
+  private static final String REDIS_CONNECTION_RETRY_ERR =
+      "Redis not available. Will retry in {} ms.";
+
+  private static final String REDIS_CONNECTION_ABORT_ERR = "Connection to redis failed";
+
+  private static final String REDIS_CONNECTION_WRITE_ERR =
+      "Failed to write to redis.";
+
+  private static final String REDIS_CONNECTION_SUCCESS = "Connected to redis";
+
+  private Jedis jedis;
 
   private final EventPublisher eventPublisher;
 
@@ -32,8 +47,10 @@ public final class ConfigurationRepository {
 
   /**
    * Create the repository.
+   *
+   * @throws ConfigurationRepositoryException When there occurs an error within the repository.
    */
-  public ConfigurationRepository() {
+  public ConfigurationRepository() throws ConfigurationRepositoryException {
 
     // setup failsafe for redis
     this.setupFailsafe();
@@ -42,9 +59,7 @@ public final class ConfigurationRepository {
     this.jedis = this.getJedisInstance();
 
     // check if connection was successful.
-    Failsafe.with(this.jedisRetryPolicy).run(() -> {
-      this.jedis.ping();
-    });
+    this.pingRedis();
 
     // setup event publishing
     if (Config.EVENT_PUBLISHING) {
@@ -54,22 +69,28 @@ public final class ConfigurationRepository {
       this.eventPublisher = new NoopPublisher();
     }
 
+    this.setInitialConfiguration();
+
   }
 
   /**
    * Sets up a connection to redis that is encapsulated by the failsafe-framework.
    */
-  public void setupFailsafe() {
-    this.jedisRetryPolicy = new RetryPolicy<>();
-    this.jedisRetryPolicy.handle(ConfigurationRepositoryException.class)
+  private void setupFailsafe() {
+    this.jedisRetryPolicy = new RetryPolicy<>()
+        .handle(JedisConnectionException.class)
         .withDelay(Duration.ofMillis(Config.FAILSAFE_DELAYINMILLIS))
         .withMaxRetries(Config.FAILSAFE_MAXRETRIES)
         .onFailedAttempt(i -> {
           this.jedis.close();
-          LOGGER.warn("Redis not available. Will retry in {} ms.",
+          this.jedis = this.getJedisInstance();
+          LOGGER.warn(REDIS_CONNECTION_RETRY_ERR,
               Config.FAILSAFE_DELAYINMILLIS);
         })
-        .onSuccess(i -> LOGGER.info("Connected to redis"));
+        .onSuccess(i -> LOGGER.info(REDIS_CONNECTION_SUCCESS))
+        .onFailure(i -> {
+          LOGGER.error(REDIS_CONNECTION_ABORT_ERR);
+        });
   }
 
   /**
@@ -82,8 +103,23 @@ public final class ConfigurationRepository {
     try {
       return this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
     } catch (final JedisConnectionException e) {
-      LOGGER.error(REDIS_CONNECTION_ERROR_MESSAGE);
+      LOGGER.error(REDIS_CONNECTION_ERR);
       throw new ConfigurationRepositoryException(); // NOPMD
+    }
+  }
+
+  /**
+   * Ping redis database.
+   *
+   * @throws ConfigurationRepositoryException When redis is not availabe.
+   */
+  private void pingRedis() throws ConfigurationRepositoryException {
+    try {
+      Failsafe.with(this.jedisRetryPolicy).run(() -> {
+        this.jedis.ping();
+      });
+    } catch (final JedisConnectionException e) {
+      throw new ConfigurationRepositoryException();
     }
   }
 
@@ -93,32 +129,21 @@ public final class ConfigurationRepository {
    * @param sensorRegistry The sensor-registry that should be persisted.
    * @throws ConfigurationRepositoryException When an error occurs in the repository.
    */
-  private void putConfiguration(final String sensorRegistry)
+  public void putConfiguration(final String sensorRegistry)
       throws ConfigurationRepositoryException {
     try {
       final String response = this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
       if ("OK".equals(response)) {
+        this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, sensorRegistry);
         return;
       } else {
+        LOGGER.error(REDIS_CONNECTION_WRITE_ERR);
         throw new ConfigurationRepositoryException();
       }
     } catch (final JedisConnectionException e) {
-      LOGGER.error(REDIS_CONNECTION_ERROR_MESSAGE);
-      throw new ConfigurationRepositoryException(); // NOPMD
+      LOGGER.error(REDIS_CONNECTION_ERR);
+      throw new ConfigurationRepositoryException();
     }
-  }
-
-  /**
-   * Save a configuration to the database.
-   *
-   * @param sensorRegistry The sensor-registry that should be persisted.
-   * @throws ConfigurationRepositoryException When an error occurs in the repository.
-   */
-  public void changeConfiguration(final String sensorRegistry)
-      throws ConfigurationRepositoryException {
-    this.putConfiguration(sensorRegistry);
-
-    this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, sensorRegistry);
   }
 
 
@@ -126,15 +151,49 @@ public final class ConfigurationRepository {
    * Set initial configuration to the database. The operation is encapsulated and does not throw an
    * exception.
    *
-   * @param sensorRegistry The sensor-registry that should be persisted.
+   * @throws ConfigurationRepositoryException When the initial sensor registry cannot be put to the
+   *         repository.
    */
-  public void setInitialConfiguration(final String sensorRegistry) {
-    Failsafe.with(this.jedisRetryPolicy)
-        .run(() -> this.putConfiguration(sensorRegistry));
+  private void setInitialConfiguration() throws ConfigurationRepositoryException {
+    LOGGER.info("Set default sensor registry");
+
+    final boolean isDemo = Config.DEMO;
+    final String sensorRegistry =
+        isDemo ? this.getDemoSensorRegistry() : this.getEmptySensorRegistry();
+
+    try {
+      Failsafe.with(this.jedisRetryPolicy)
+          .run(() -> this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry));
+    } catch (final JedisConnectionException e) {
+      throw new ConfigurationRepositoryException();
+    }
 
     this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, sensorRegistry);
   }
 
+
+  /**
+   * Get the demo sensor-registry.
+   *
+   * @return The Demo Sensor-Registry
+   */
+  private String getDemoSensorRegistry() {
+    try {
+      final URL url = Resources.getResource("demo_sensor_registry.json");
+      return Resources.toString(url, StandardCharsets.UTF_8);
+    } catch (final IOException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  /**
+   * Get the empty sensor-registry.
+   *
+   * @return
+   */
+  private String getEmptySensorRegistry() {
+    return new MutableSensorRegistry("root").toJson();
+  }
 
 
   /**
@@ -143,9 +202,16 @@ public final class ConfigurationRepository {
    *
    * @return A new {@link Jedis} instance.
    */
-  public Jedis getJedisInstance() {
+  private Jedis getJedisInstance() {
     return new Jedis(Config.REDIS_HOST,
         Config.REDIS_PORT);
+  }
+
+  /**
+   * Close the repository.
+   */
+  public void close() {
+    this.jedis.close();
   }
 
   /**
