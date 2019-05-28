@@ -1,4 +1,4 @@
-package titan.ccp.configuration;
+package titan.ccp.api;
 
 import com.google.common.io.Resources;
 import java.io.IOException;
@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
+import titan.ccp.configuration.Config;
 import titan.ccp.configuration.events.Event;
 import titan.ccp.configuration.events.EventPublisher;
 import titan.ccp.configuration.events.KafkaPublisher;
@@ -103,7 +104,7 @@ public final class ConfigurationRepository {
     try {
       return this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
     } catch (final JedisConnectionException e) {
-      LOGGER.error(REDIS_CONNECTION_ERR);
+      LOGGER.error(REDIS_CONNECTION_ERR, e);
       throw new ConfigurationRepositoryException(); // NOPMD
     }
   }
@@ -119,7 +120,8 @@ public final class ConfigurationRepository {
         this.jedis.ping();
       });
     } catch (final JedisConnectionException e) {
-      throw new ConfigurationRepositoryException();
+      LOGGER.error(REDIS_CONNECTION_ERR, e);
+      throw new ConfigurationRepositoryException(); // NOPMD rethrow exception
     }
   }
 
@@ -141,8 +143,8 @@ public final class ConfigurationRepository {
         throw new ConfigurationRepositoryException();
       }
     } catch (final JedisConnectionException e) {
-      LOGGER.error(REDIS_CONNECTION_ERR);
-      throw new ConfigurationRepositoryException();
+      LOGGER.error(REDIS_CONNECTION_ERR, e);
+      throw new ConfigurationRepositoryException(); // NOPMD rethrow exception
     }
   }
 
@@ -158,14 +160,15 @@ public final class ConfigurationRepository {
     LOGGER.info("Set default sensor registry");
 
     final boolean isDemo = Config.DEMO;
-    final String sensorRegistry =
+    final String sensorRegistry = // NOPMD variable might be undefined
         isDemo ? this.getDemoSensorRegistry() : this.getEmptySensorRegistry();
 
     try {
       Failsafe.with(this.jedisRetryPolicy)
           .run(() -> this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry));
     } catch (final JedisConnectionException e) {
-      throw new ConfigurationRepositoryException();
+      LOGGER.error(REDIS_CONNECTION_ERR, e);
+      throw new ConfigurationRepositoryException(); // NOPMD rethrow exception
     }
 
     this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, sensorRegistry);
@@ -182,6 +185,7 @@ public final class ConfigurationRepository {
       final URL url = Resources.getResource("demo_sensor_registry.json");
       return Resources.toString(url, StandardCharsets.UTF_8);
     } catch (final IOException e) {
+      LOGGER.error("Demo sensor registry could not be loaded", e);
       throw new IllegalStateException(e);
     }
   }

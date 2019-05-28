@@ -1,9 +1,10 @@
-package titan.ccp.configuration;
+package titan.ccp.api;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Service;
-import titan.ccp.configuration.ConfigurationRepository.ConfigurationRepositoryException;
+import titan.ccp.api.ConfigurationRepository.ConfigurationRepositoryException;
+import titan.ccp.configuration.Config;
 import titan.ccp.model.sensorregistry.SensorRegistry;
 
 /**
@@ -48,6 +49,15 @@ public final class RestApiServer {
       this.enableCorsHeaders();
     }
 
+    this.initializeRoutes();
+
+    this.handleErrors();
+  }
+
+  /**
+   * Initialize routes.
+   */
+  private void initializeRoutes() {
     // handle getting sensor registry
     this.webService.get(SENSOR_REGISTRY_PATH, (request, response) -> {
       return this.configurationRepository.getConfiguration();
@@ -69,7 +79,9 @@ public final class RestApiServer {
       response.status(204); // NOCS HTTP response code
       return "";
     });
+  }
 
+  private void handleErrors() {
     // handle repository exceptions
     this.webService.exception(ConfigurationRepositoryException.class, (e, request, response) -> {
       response.status(500); // NOCS HTTP response code

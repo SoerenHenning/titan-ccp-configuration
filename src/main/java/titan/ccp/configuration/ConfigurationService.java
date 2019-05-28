@@ -2,7 +2,9 @@ package titan.ccp.configuration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import titan.ccp.configuration.ConfigurationRepository.ConfigurationRepositoryException;
+import titan.ccp.api.ConfigurationRepository;
+import titan.ccp.api.ConfigurationRepository.ConfigurationRepositoryException;
+import titan.ccp.api.RestApiServer;
 
 /**
  * A microservice that manages the system-wide configuration. For example, the sensor registry. It
@@ -26,12 +28,13 @@ public final class ConfigurationService {
   public void run() {
     try {
       this.configurationRepository = new ConfigurationRepository();
-      this.webServer =
-          new RestApiServer(Config.WEBSERVER_PORT, Config.CORS, this.configurationRepository);
     } catch (final ConfigurationRepositoryException e) {
-      e.printStackTrace();
+      LOGGER.error("", e);
       this.stop();
     }
+
+    this.webServer =
+        new RestApiServer(Config.WEBSERVER_PORT, Config.CORS, this.configurationRepository);
     this.webServer.start();
   }
 
