@@ -1,10 +1,10 @@
-package titan.ccp.api;
+package titan.ccp.configuration.api;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Service;
-import titan.ccp.api.ConfigurationRepository.ConfigurationRepositoryException;
 import titan.ccp.configuration.Config;
+import titan.ccp.configuration.api.ConfigurationRepository.ConfigurationRepositoryException;
 import titan.ccp.model.sensorregistry.SensorRegistry;
 
 /**

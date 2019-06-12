@@ -1,4 +1,4 @@
-package titan.ccp.api;
+package titan.ccp.configuration.api;
 
 import com.google.common.io.Resources;
 import java.io.IOException;
@@ -159,25 +159,31 @@ public final class ConfigurationRepository {
   private void setDefaultSensorRegistry() throws ConfigurationRepositoryException {
     LOGGER.info("Set default sensor registry");
 
-    final String sensorRegistry = this.getDefaultSensorRegsitry();
+    final String sensorRegistry = this.getDefaultSensorRegsitry(); // NOPMD
 
     try {
       Failsafe.with(this.jedisRetryPolicy)
           .run(() -> this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry));
     } catch (final JedisConnectionException e) {
       LOGGER.error(REDIS_CONNECTION_ERR, e);
-      throw new ConfigurationRepositoryException(); // NOPMD rethrow exception
+      throw new ConfigurationRepositoryException(); // NOPMD exception logged
     }
 
     this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, sensorRegistry);
+
   }
 
+  /**
+   * Get the default sensor-registry.
+   *
+   * @return The default sensor registry as JSON
+   */
   private String getDefaultSensorRegsitry() {
-    if (Config.DEMO) {
+    if (Config.DEMO) { // NOPMD if statement
       return this.getDemoSensorRegistry();
     } else {
       final String initial = this.getInitialSensorRegistry();
-      if (initial != null) {
+      if (initial != null) { // NOPMD if statement
         return initial;
       } else {
         return this.getEmptySensorRegistry();
@@ -185,6 +191,11 @@ public final class ConfigurationRepository {
     }
   }
 
+  /**
+   * Get the inital sensor-registry.
+   *
+   * @return The inital sensor registry as JSON
+   */
   private String getInitialSensorRegistry() {
     return Config.INITIAL_SENSOR_REGISTRY;
   }

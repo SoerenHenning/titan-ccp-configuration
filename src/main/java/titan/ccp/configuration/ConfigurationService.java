@@ -2,9 +2,9 @@ package titan.ccp.configuration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import titan.ccp.api.ConfigurationRepository;
-import titan.ccp.api.ConfigurationRepository.ConfigurationRepositoryException;
-import titan.ccp.api.RestApiServer;
+import titan.ccp.configuration.api.ConfigurationRepository;
+import titan.ccp.configuration.api.ConfigurationRepository.ConfigurationRepositoryException;
+import titan.ccp.configuration.api.RestApiServer;
 
 /**
  * A microservice that manages the system-wide configuration. For example, the sensor registry. It
