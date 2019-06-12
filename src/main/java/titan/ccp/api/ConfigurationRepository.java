@@ -70,7 +70,7 @@ public final class ConfigurationRepository {
       this.eventPublisher = new NoopPublisher();
     }
 
-    this.setInitialConfiguration();
+    this.setDefaultSensorRegistry();
 
   }
 
@@ -156,12 +156,10 @@ public final class ConfigurationRepository {
    * @throws ConfigurationRepositoryException When the initial sensor registry cannot be put to the
    *         repository.
    */
-  private void setInitialConfiguration() throws ConfigurationRepositoryException {
+  private void setDefaultSensorRegistry() throws ConfigurationRepositoryException {
     LOGGER.info("Set default sensor registry");
 
-    final boolean isDemo = Config.DEMO;
-    final String sensorRegistry = // NOPMD variable might be undefined
-        isDemo ? this.getDemoSensorRegistry() : this.getEmptySensorRegistry();
+    final String sensorRegistry = this.getDefaultSensorRegsitry();
 
     try {
       Failsafe.with(this.jedisRetryPolicy)
@@ -172,6 +170,23 @@ public final class ConfigurationRepository {
     }
 
     this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, sensorRegistry);
+  }
+
+  private String getDefaultSensorRegsitry() {
+    if (Config.DEMO) {
+      return this.getDemoSensorRegistry();
+    } else {
+      final String initial = this.getInitialSensorRegistry();
+      if (initial != null) {
+        return initial;
+      } else {
+        return this.getEmptySensorRegistry();
+      }
+    }
+  }
+
+  private String getInitialSensorRegistry() {
+    return Config.INITIAL_SENSOR_REGISTRY;
   }
 
 
