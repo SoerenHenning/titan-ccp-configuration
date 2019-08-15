@@ -27,18 +27,16 @@ public final class ConfigurationRepository {
 
   private static final String REDIS_SENSOR_REGISTRY_KEY = "sensor_registry";
 
-  private static final String REDIS_CONNECTION_ERR =
-      "Failed to connect to redis instance.";
+  private static final String REDIS_CONNECTION_ERR = "Failed to connect to redis instance.";
 
   private static final String REDIS_CONNECTION_RETRY_ERR =
       "Redis not available. Will retry in {} ms.";
 
-  private static final String REDIS_CONNECTION_ABORT_ERR = "Connection to redis failed";
+  private static final String REDIS_CONNECTION_ABORT_ERR = "Connection to redis failed.";
 
-  private static final String REDIS_CONNECTION_WRITE_ERR =
-      "Failed to write to redis.";
+  private static final String REDIS_CONNECTION_WRITE_ERR = "Failed to write to redis.";
 
-  private static final String REDIS_CONNECTION_SUCCESS = "Connected to redis";
+  private static final String REDIS_CONNECTION_SUCCESS = "Connected to redis.";
 
   private Jedis jedis;
 
@@ -64,8 +62,7 @@ public final class ConfigurationRepository {
 
     // setup event publishing
     if (Config.EVENT_PUBLISHING) {
-      this.eventPublisher =
-          new KafkaPublisher(Config.KAFKA_BOOTSTRAP_SERVERS, Config.KAFKA_TOPIC);
+      this.eventPublisher = new KafkaPublisher(Config.KAFKA_BOOTSTRAP_SERVERS, Config.KAFKA_TOPIC);
     } else {
       this.eventPublisher = new NoopPublisher();
     }
@@ -85,13 +82,10 @@ public final class ConfigurationRepository {
         .onFailedAttempt(i -> {
           this.jedis.close();
           this.jedis = this.getJedisInstance();
-          LOGGER.warn(REDIS_CONNECTION_RETRY_ERR,
-              Config.FAILSAFE_DELAYINMILLIS);
+          LOGGER.warn(REDIS_CONNECTION_RETRY_ERR, Config.FAILSAFE_DELAYINMILLIS);
         })
         .onSuccess(i -> LOGGER.info(REDIS_CONNECTION_SUCCESS))
-        .onFailure(i -> {
-          LOGGER.error(REDIS_CONNECTION_ABORT_ERR);
-        });
+        .onFailure(i -> LOGGER.error(REDIS_CONNECTION_ABORT_ERR));
   }
 
   /**
@@ -105,7 +99,7 @@ public final class ConfigurationRepository {
       return this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
     } catch (final JedisConnectionException e) {
       LOGGER.error(REDIS_CONNECTION_ERR, e);
-      throw new ConfigurationRepositoryException(); // NOPMD
+      throw new ConfigurationRepositoryException(e);
     }
   }
 
@@ -121,7 +115,7 @@ public final class ConfigurationRepository {
       });
     } catch (final JedisConnectionException e) {
       LOGGER.error(REDIS_CONNECTION_ERR, e);
-      throw new ConfigurationRepositoryException(); // NOPMD rethrow exception
+      throw new ConfigurationRepositoryException(e);
     }
   }
 
@@ -144,7 +138,7 @@ public final class ConfigurationRepository {
       }
     } catch (final JedisConnectionException e) {
       LOGGER.error(REDIS_CONNECTION_ERR, e);
-      throw new ConfigurationRepositoryException(); // NOPMD rethrow exception
+      throw new ConfigurationRepositoryException(e);
     }
   }
 
@@ -179,14 +173,14 @@ public final class ConfigurationRepository {
    * @return The default sensor registry as JSON
    */
   private String getDefaultSensorRegsitry() {
-    if (Config.DEMO) { // NOPMD if statement
+    if (Config.DEMO) {
       return this.getDemoSensorRegistry();
     } else {
       final String initial = this.getInitialSensorRegistry();
-      if (initial != null) { // NOPMD if statement
-        return initial;
-      } else {
+      if (initial == null) {
         return this.getEmptySensorRegistry();
+      } else {
+        return initial;
       }
     }
   }
@@ -233,8 +227,7 @@ public final class ConfigurationRepository {
    * @return A new {@link Jedis} instance.
    */
   private Jedis getJedisInstance() {
-    return new Jedis(Config.REDIS_HOST,
-        Config.REDIS_PORT);
+    return new Jedis(Config.REDIS_HOST, Config.REDIS_PORT);
   }
 
   /**
@@ -249,7 +242,26 @@ public final class ConfigurationRepository {
    *
    */
   @SuppressWarnings("serial")
-  public class ConfigurationRepositoryException extends Exception {
+  public static class ConfigurationRepositoryException extends Exception {
+
+    public ConfigurationRepositoryException() {
+      super();
+    }
+
+    public ConfigurationRepositoryException(final String message) {
+      super(message);
+    }
+
+
+    public ConfigurationRepositoryException(final String message, final Throwable cause) {
+      super(message, cause);
+    }
+
+
+    public ConfigurationRepositoryException(final Throwable cause) {
+      super(cause);
+    }
 
   }
+
 }

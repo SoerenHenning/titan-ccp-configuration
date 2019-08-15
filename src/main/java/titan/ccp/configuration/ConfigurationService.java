@@ -16,8 +16,6 @@ public final class ConfigurationService {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ConfigurationService.class);
 
-  private static final String SHUTDOWN_SERVICE_MESSAGE = "Shutting down Configuration microservice";
-
   private RestApiServer webServer;
 
   private ConfigurationRepository configurationRepository;
@@ -29,24 +27,22 @@ public final class ConfigurationService {
     try {
       this.configurationRepository = new ConfigurationRepository();
     } catch (final ConfigurationRepositoryException e) {
-      LOGGER.error("", e);
+      LOGGER.error("Could not instantiate underlying repository.", e);
       this.stop();
     }
 
-    this.webServer =
-        new RestApiServer(Config.WEBSERVER_PORT, Config.CORS, this.configurationRepository);
+    this.webServer = new RestApiServer(
+        Config.WEBSERVER_PORT,
+        Config.CORS,
+        this.configurationRepository);
     this.webServer.start();
-  }
-
-  public static void main(final String[] args) {
-    new ConfigurationService().run();
   }
 
   /**
    * Stop the microservice.
    */
   private void stop() {
-    LOGGER.warn(SHUTDOWN_SERVICE_MESSAGE);
+    LOGGER.warn("Shutting down Configuration microservice.");
     if (this.webServer != null) {
       this.webServer.stop();
     }
@@ -54,5 +50,9 @@ public final class ConfigurationService {
       this.configurationRepository.close();
     }
     System.exit(1); // NOPMD exit application manually
+  }
+
+  public static void main(final String[] args) {
+    new ConfigurationService().run();
   }
 }
