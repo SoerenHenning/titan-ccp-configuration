@@ -1,21 +1,10 @@
 package titan.ccp.configuration;
 
-import com.google.common.io.Resources;
-import java.io.IOException;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import org.apache.commons.configuration2.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.Jedis;
-import spark.Spark;
-import titan.ccp.common.configuration.Configurations;
-import titan.ccp.configuration.events.Event;
-import titan.ccp.configuration.events.EventPublisher;
-import titan.ccp.configuration.events.KafkaPublisher;
-import titan.ccp.configuration.events.NoopPublisher;
-import titan.ccp.model.sensorregistry.MutableSensorRegistry;
-import titan.ccp.model.sensorregistry.SensorRegistry;
+import titan.ccp.configuration.api.ConfigurationRepository;
+import titan.ccp.configuration.api.ConfigurationRepository.ConfigurationRepositoryException;
+import titan.ccp.configuration.api.RestApiServer;
 
 /**
  * A microservice that manages the system-wide configuration. For example, the sensor registry. It
@@ -23,162 +12,47 @@ import titan.ccp.model.sensorregistry.SensorRegistry;
  * a Kafka topic.
  *
  */
-public class ConfigurationService {
+public final class ConfigurationService {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ConfigurationService.class);
 
-  private static final String REDIS_SENSOR_REGISTRY_KEY = "sensor_registry";
+  private RestApiServer webServer;
 
-  private static final String SENSOR_REGISTRY_PATH = "/sensor-registry";
-
-  private static final String INTERNAL_SERVER_ERROR_MESSAGE = "Internal Server Error";
-  private static final String ACCESS_FORBIDDEN_MESSAGE = "Access forbidden";
-
-  private final Configuration config = Configurations.create();
-  private final Jedis jedis;
-  private final EventPublisher eventPublisher;
+  private ConfigurationRepository configurationRepository;
 
   /**
-   * Create a new instance of the {@link ConfigurationService} using parameters configured
-   * externally (environment variables or a .properties file).
+   * Run the microservice.
    */
-  public ConfigurationService() {
-    final long startupWait = this.config.getLong("startup.wait.ms");
-    LOGGER.info("Wait for {} ms to connect to redis.", startupWait);
+  public void run() {
     try {
-      Thread.sleep(startupWait);
-    } catch (final InterruptedException e) {
-      throw new IllegalStateException(e);
+      this.configurationRepository = new ConfigurationRepository();
+    } catch (final ConfigurationRepositoryException e) {
+      LOGGER.error("Could not instantiate underlying repository.", e);
+      this.stop();
     }
-    this.jedis = new Jedis(this.config.getString("redis.host"), this.config.getInt("redis.port"));
 
-    if (this.config.getBoolean("event.publishing")) {
-      this.eventPublisher = new KafkaPublisher(this.config.getString("kafka.bootstrap.servers"),
-          this.config.getString("kafka.topic"));
-    } else {
-      this.eventPublisher = new NoopPublisher();
-    }
+    this.webServer = new RestApiServer(
+        Config.WEBSERVER_PORT,
+        Config.CORS,
+        this.configurationRepository);
+    this.webServer.start();
   }
 
   /**
-   * Start the service by starting the underlying web server.
+   * Stop the microservice.
    */
-  public void start() {
-    if (this.config.getBoolean("demo")) { // NOCS
-      LOGGER.info("Running in demo mode.");
+  private void stop() {
+    LOGGER.warn("Shutting down Configuration microservice.");
+    if (this.webServer != null) {
+      this.webServer.stop();
     }
-    this.setDefaultSensorRegistry();
-
-    final String currentSensorRegistry = this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
-    if (currentSensorRegistry != null) {
-      this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, currentSensorRegistry);
+    if (this.configurationRepository != null) {
+      this.configurationRepository.close();
     }
-
-    Spark.port(this.config.getInt("webserver.port"));
-
-    if (this.config.getBoolean("webserver.cors")) {
-      Spark.options("/*", (request, response) -> {
-
-        final String accessControlRequestHeaders =
-            request.headers("Access-Control-Request-Headers");
-        if (accessControlRequestHeaders != null) {
-          response.header("Access-Control-Allow-Headers", accessControlRequestHeaders);
-        }
-
-        final String accessControlRequestMethod = request.headers("Access-Control-Request-Method");
-        if (accessControlRequestMethod != null) {
-          response.header("Access-Control-Allow-Methods", accessControlRequestMethod);
-        }
-
-        return "OK";
-      });
-
-      Spark.before((request, response) -> {
-        response.header("Access-Control-Allow-Origin", "*");
-      });
-    }
-
-    Spark.get(SENSOR_REGISTRY_PATH, (request, response) -> {
-      final String redisResponse = this.jedis.get(REDIS_SENSOR_REGISTRY_KEY);
-      if (redisResponse == null) {
-        response.status(500); // NOCS HTTP response code
-        return INTERNAL_SERVER_ERROR_MESSAGE;
-      } else {
-        return redisResponse;
-      }
-    });
-
-    Spark.put(SENSOR_REGISTRY_PATH, (request, response) -> {
-      if (this.config.getBoolean("demo")) { // NOCS
-        response.status(403); // NOCS HTTP response code
-        return ACCESS_FORBIDDEN_MESSAGE;
-      } else {
-        // TODO validation
-        final SensorRegistry sensorRegistry = SensorRegistry.fromJson(request.body());
-        final String json = sensorRegistry.toJson();
-        final String redisResponse = this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, json);
-        if ("OK".equals(redisResponse)) {
-          this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, json);
-          response.status(204); // NOCS HTTP response code
-          return "";
-        } else {
-          response.status(500); // NOCS HTTP response code
-          return INTERNAL_SERVER_ERROR_MESSAGE;
-        }
-      }
-    });
-
-    Spark.after((request, response) -> {
-      response.type("application/json");
-    });
-  }
-
-  public void stop() {
-    this.jedis.close();
-    this.eventPublisher.close();
-  }
-
-  private void setDefaultSensorRegistry() {
-    // final boolean isDemo = this.config.getBoolean("demo"); // NOCS
-    // this.getDefaultSensorRegsitry();
-    final String sensorRegistry = this.getDefaultSensorRegsitry();
-    // isDemo ? this.getDemoSensorRegsitry() : this.getEmptySensorRegsitry();
-    this.jedis.set(REDIS_SENSOR_REGISTRY_KEY, sensorRegistry);
-    LOGGER.info("Set sensor registry");
-  }
-
-  private String getDefaultSensorRegsitry() {
-    if (this.config.getBoolean("demo")) { // NOCS
-      return this.getDemoSensorRegsitry();
-    } else {
-      final String initial = this.getInitialSensorRegsitry();
-      if (initial == null) {
-        return this.getEmptySensorRegsitry();
-      } else {
-        return initial;
-      }
-    }
-  }
-
-  private String getDemoSensorRegsitry() {
-    try {
-      final URL url = Resources.getResource("demo_sensor_registry.json");
-      return Resources.toString(url, StandardCharsets.UTF_8);
-    } catch (final IOException e) {
-      throw new IllegalStateException(e);
-    }
-  }
-
-  private String getEmptySensorRegsitry() {
-    return new MutableSensorRegistry("root").toJson();
-  }
-
-  private String getInitialSensorRegsitry() {
-    return this.config.getString("initial.sensor.registry");
+    System.exit(1); // NOPMD exit application manually
   }
 
   public static void main(final String[] args) {
-    new ConfigurationService().start();
+    new ConfigurationService().run();
   }
-
 }
