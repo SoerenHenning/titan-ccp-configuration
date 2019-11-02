@@ -10,9 +10,10 @@ public final class Config { // NOPMD utility class alert
 
   private static final Configuration CONFIGURATION = Configurations.create();
 
-  public static final String REDIS_HOST =
-      CONFIGURATION.getString(ConfigurationKeys.REDIS_HOST);
-  public static final int REDIS_PORT = Config.CONFIGURATION.getInt(ConfigurationKeys.REDIS_PORT);
+  public static final String MONGODB_HOST =
+      CONFIGURATION.getString(ConfigurationKeys.MONGODB_HOST);
+  public static final int MONGODB_PORT =
+      Config.CONFIGURATION.getInt(ConfigurationKeys.MONGODB_PORT);
   public static final boolean DEMO = Config.CONFIGURATION.getBoolean(ConfigurationKeys.DEMO);
   public static final boolean EVENT_PUBLISHING =
       CONFIGURATION.getBoolean(ConfigurationKeys.EVENT_PUBLISHING);
@@ -27,7 +28,7 @@ public final class Config { // NOPMD utility class alert
   public static final int WEBSERVER_PORT =
       CONFIGURATION.getInt(ConfigurationKeys.WEBSERVER_PORT);
   public static final boolean CORS = CONFIGURATION.getBoolean(ConfigurationKeys.CORS);
-  public static final String INITIAL_SENSOR_REGISTRY =
+  public static final String INITIAL_SENSOR_HIERARCHY =
       CONFIGURATION.getString("initial.sensor.registry");
 
   private Config() {}

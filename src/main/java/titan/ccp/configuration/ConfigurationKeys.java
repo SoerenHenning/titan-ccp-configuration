@@ -15,9 +15,9 @@ public final class ConfigurationKeys { // NOPMD
 
   public static final String KAFKA_TOPIC = "kafka.topic";
 
-  public static final String REDIS_HOST = "redis.host";
+  public static final String MONGODB_HOST = "mongodb.host";
 
-  public static final String REDIS_PORT = "redis.port";
+  public static final String MONGODB_PORT = "mongodb.port";
 
   public static final String DEMO = "demo";
 

@@ -1,1 +1,4 @@
 rootProject.name = 'titanccp-configuration'
+
+include ':titanccp-common'
+project(':titanccp-common').projectDir = new File(settingsDir, "../common") // for local changes

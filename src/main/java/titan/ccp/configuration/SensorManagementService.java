@@ -2,9 +2,8 @@ package titan.ccp.configuration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import titan.ccp.configuration.api.ConfigurationRepository;
-import titan.ccp.configuration.api.ConfigurationRepository.ConfigurationRepositoryException;
 import titan.ccp.configuration.api.RestApiServer;
+import titan.ccp.configuration.api.SensorHierarchyRepository;
 
 /**
  * A microservice that manages the system-wide configuration. For example, the sensor registry. It
@@ -12,29 +11,24 @@ import titan.ccp.configuration.api.RestApiServer;
  * a Kafka topic.
  *
  */
-public final class ConfigurationService {
+public final class SensorManagementService {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(ConfigurationService.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(SensorManagementService.class);
 
   private RestApiServer webServer;
 
-  private ConfigurationRepository configurationRepository;
+  private SensorHierarchyRepository sensorHierarchyRepository;
 
   /**
    * Run the microservice.
    */
   public void run() {
-    try {
-      this.configurationRepository = new ConfigurationRepository();
-    } catch (final ConfigurationRepositoryException e) {
-      LOGGER.error("Could not instantiate underlying repository.", e);
-      this.stop();
-    }
+    this.sensorHierarchyRepository = new SensorHierarchyRepository();
 
     this.webServer = new RestApiServer(
         Config.WEBSERVER_PORT,
         Config.CORS,
-        this.configurationRepository);
+        this.sensorHierarchyRepository);
     this.webServer.start();
   }
 
@@ -46,13 +40,13 @@ public final class ConfigurationService {
     if (this.webServer != null) {
       this.webServer.stop();
     }
-    if (this.configurationRepository != null) {
-      this.configurationRepository.close();
+    if (this.sensorHierarchyRepository != null) {
+      this.sensorHierarchyRepository.close();
     }
     System.exit(1); // NOPMD exit application manually
   }
 
   public static void main(final String[] args) {
-    new ConfigurationService().run();
+    new SensorManagementService().run();
   }
 }
