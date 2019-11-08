@@ -5,8 +5,10 @@ import com.google.common.io.Resources;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoWriteException;
 import com.mongodb.ServerAddress;
+import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoIterable;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.IndexOptions;
@@ -17,7 +19,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import titan.ccp.configuration.Config;
@@ -25,6 +29,7 @@ import titan.ccp.configuration.events.Event;
 import titan.ccp.configuration.events.EventPublisher;
 import titan.ccp.configuration.events.KafkaPublisher;
 import titan.ccp.configuration.events.NoopPublisher;
+import titan.ccp.model.sensorregistry.AggregatedSensor;
 import titan.ccp.model.sensorregistry.MutableSensorRegistry;
 import titan.ccp.model.sensorregistry.SensorRegistry;
 
@@ -42,6 +47,10 @@ public final class SensorHierarchyRepository {
   private static final String COLLLECTION_NAME = "sensor-hierarchies";
 
   private static final String IDENTIFIER_FIELD = "identifier";
+
+  private final MongoCollection<Document> collection = this.mongoClient
+      .getDatabase(SensorHierarchyRepository.DATABASE_NAME)
+      .getCollection(SensorHierarchyRepository.COLLLECTION_NAME);
 
 
   private final MongoClient mongoClient = MongoClients.create(
@@ -74,9 +83,7 @@ public final class SensorHierarchyRepository {
   private void init() {
     final IndexOptions indexOptions = new IndexOptions();
     indexOptions.unique(true);
-    this.mongoClient
-        .getDatabase(SensorHierarchyRepository.DATABASE_NAME)
-        .getCollection(SensorHierarchyRepository.COLLLECTION_NAME)
+    this.collection
         .createIndex(Indexes.text(IDENTIFIER_FIELD), indexOptions);
   }
 
@@ -164,9 +171,7 @@ public final class SensorHierarchyRepository {
 
 
   public SensorRegistry getSensorHierarchy(final String identifier) {
-    final Document result = this.mongoClient
-        .getDatabase(SensorHierarchyRepository.DATABASE_NAME)
-        .getCollection(SensorHierarchyRepository.COLLLECTION_NAME)
+    final Document result = this.collection
         .find(Filters.eq(IDENTIFIER_FIELD, identifier))
         .first();
 
@@ -176,22 +181,55 @@ public final class SensorHierarchyRepository {
   }
 
   public List<SensorRegistry> getAllSensorHierarchies() {
-    final MongoIterable<SensorRegistry> results = this.mongoClient
-        .getDatabase(SensorHierarchyRepository.DATABASE_NAME)
-        .getCollection(SensorHierarchyRepository.COLLLECTION_NAME)
+    final MongoIterable<SensorRegistry> results = this.collection
         .find()
         .map(result -> SensorRegistry.fromJson(result.toJson()));
     return Lists.newArrayList(results);
   }
 
+  // node version
   public void createSensorHierarchy(final SensorRegistry hierarchy)
       throws SensorHierarchyExistsException, SensorHierarchyRepositoryException {
-    final Document document = Document.parse(hierarchy.toJson());
     try {
-      this.mongoClient
-          .getDatabase(SensorHierarchyRepository.DATABASE_NAME)
-          .getCollection(SensorHierarchyRepository.COLLLECTION_NAME)
-          .insertOne(document);
+      // check if any sensor of the hierarchy already exists in any hierarchy
+      final List<Bson> filter = hierarchy
+          .getTopLevelSensor()
+          .flat()
+          .stream()
+          .map(sensor -> Filters.eq("_id", sensor.getIdentifier()))
+          .collect(Collectors.toList());
+      final FindIterable<Document> result = this.collection
+          .find(Filters.or(filter));
+
+      if (!result.iterator().hasNext()) {
+        // all sensors new
+        // insert nodes into collection
+        final List<Document> nodes = hierarchy
+            .getTopLevelSensor()
+            .flat()
+            .stream()
+            .map(sensor -> {
+              final Document doc = new Document();
+              doc.append("_id", sensor.getIdentifier());
+              doc.append("name", sensor.getName());
+              if (sensor instanceof AggregatedSensor) {
+                final List<String> childrenIds = ((AggregatedSensor) sensor)
+                    .getChildren()
+                    .stream()
+                    .map(child -> child.getIdentifier())
+                    .collect(Collectors.toList());
+                doc.append("children", childrenIds);
+              }
+              return doc;
+            })
+            .collect(Collectors.toList());
+
+        this.collection
+            .insertMany(nodes);
+      } else {
+        // some sensor not new
+        throw new SensorHierarchyExistsException();
+      }
     }
     // handle write-related errors
     catch (final MongoWriteException e) {
@@ -213,9 +251,7 @@ public final class SensorHierarchyRepository {
   public void updateSensorHierarchy(final SensorRegistry hierarchy)
       throws SensorHierarchyNotFoundException {
     final Document updatedDocument = Document.parse(hierarchy.toJson());
-    final Document result = this.mongoClient
-        .getDatabase(SensorHierarchyRepository.DATABASE_NAME)
-        .getCollection(SensorHierarchyRepository.COLLLECTION_NAME)
+    final Document result = this.collection
         .findOneAndReplace(
             Filters.eq(IDENTIFIER_FIELD, hierarchy.getTopLevelSensor().getIdentifier()),
             updatedDocument);
@@ -234,9 +270,7 @@ public final class SensorHierarchyRepository {
   public void deleteSensorHierarchy(final String identifier)
       throws SensorHierarchyNotFoundException, SensorHierarchyRepositoryException {
     try {
-      final DeleteResult result = this.mongoClient
-          .getDatabase(SensorHierarchyRepository.DATABASE_NAME)
-          .getCollection(SensorHierarchyRepository.COLLLECTION_NAME)
+      final DeleteResult result = this.collection
           .deleteOne(Filters.eq(IDENTIFIER_FIELD, identifier));
       if (result.getDeletedCount() < 1) {
         throw new SensorHierarchyNotFoundException();

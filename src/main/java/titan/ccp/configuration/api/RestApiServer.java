@@ -34,7 +34,6 @@ public final class RestApiServer {
 
   private static final Gson GSON = new GsonBuilder().create();
 
-
   private final SensorHierarchyRepository sensorHierarchyRepository;
 
   private final Service webService;
@@ -78,12 +77,12 @@ public final class RestApiServer {
     this.webService.get(GET_SENSOR_HIERARCHY_PATH, (request, response) -> {
       final String identifier = request.params("id");
       if (identifier == null) {
-        response.status(400); // bad request;
+        response.status(400); // NOCS HTTP status code: Bad Request
         return "";
       }
       final SensorRegistry registry = this.sensorHierarchyRepository.getSensorHierarchy(identifier);
       if (registry == null) {
-        response.status(400); // bad request
+        response.status(400); // NOCS HTTP status code: Bad Request
         return "";
       }
       return registry.toJson();
