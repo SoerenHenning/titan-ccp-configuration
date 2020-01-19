@@ -2,10 +2,9 @@ package titan.ccp.configuration.api;
 
 import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
+import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
-import com.mongodb.MongoWriteException;
-import com.mongodb.ServerAddress;
-import com.mongodb.client.FindIterable;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
@@ -17,20 +16,27 @@ import com.mongodb.client.result.DeleteResult;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import titan.ccp.configuration.Config;
+import titan.ccp.configuration.api.util.SensorAddedEvent;
+import titan.ccp.configuration.api.util.SensorDeletedEvent;
+import titan.ccp.configuration.api.util.SensorEvent;
+import titan.ccp.configuration.api.util.SensorHierarchyComparatorUtils;
 import titan.ccp.configuration.events.Event;
 import titan.ccp.configuration.events.EventPublisher;
 import titan.ccp.configuration.events.KafkaPublisher;
 import titan.ccp.configuration.events.NoopPublisher;
 import titan.ccp.model.sensorregistry.AggregatedSensor;
 import titan.ccp.model.sensorregistry.MutableSensorRegistry;
+import titan.ccp.model.sensorregistry.Sensor;
 import titan.ccp.model.sensorregistry.SensorRegistry;
 
 /**
@@ -40,36 +46,53 @@ public final class SensorHierarchyRepository {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(SensorHierarchyRepository.class);
 
+  private static final String DATABASE_NAME = "sensor-management";
+  private static final String COLLLECTION_NAME = "sensor-hierarchies";
+  private static final String COLLECTION_SENSORS = "sensors";
+  private static final String IDENTIFIER_FIELD = "identifier";
+  private static final String TOP_LEVEL_IDENTIFIER_FIELD = "root";
+  private static final String DEFAULT_HIERARCHY_IDENTIFIER = "default-hierarchy";
+
+  private static final int ZERO = 0;
+
   private final EventPublisher eventPublisher;
 
-  private static final String DATABASE_NAME = "sensor-management";
+  private final MongoClient mongoClient;
 
-  private static final String COLLLECTION_NAME = "sensor-hierarchies";
+  private final MongoCollection<Document> sensorHierarchies;
+  private final MongoCollection<Document> sensors;
 
-  private static final String IDENTIFIER_FIELD = "identifier";
-
-  private final MongoCollection<Document> collection = this.mongoClient
-      .getDatabase(SensorHierarchyRepository.DATABASE_NAME)
-      .getCollection(SensorHierarchyRepository.COLLLECTION_NAME);
-
-
-  private final MongoClient mongoClient = MongoClients.create(
-      MongoClientSettings.builder()
-          .applyToClusterSettings(
-              builder -> builder.hosts(
-                  Arrays.asList(new ServerAddress(Config.MONGODB_HOST, Config.MONGODB_PORT))))
-          .build());
+  private final ClientSession session;
 
   /**
    * Create the repository.
    *
    * @throws ConfigurationRepositoryException When there occurs an error within the repository.
    */
-  public SensorHierarchyRepository() {
+  public SensorHierarchyRepository(final String host, final String port) {
 
-    this.init();
+    this.mongoClient = MongoClients.create(
+        MongoClientSettings.builder()
+            .applyToClusterSettings(
+                builder -> {
+                  builder.applyConnectionString(new ConnectionString(
+                      "mongodb://" + host + ":" + port + "/"
+                          + SensorHierarchyRepository.DATABASE_NAME
+                          + "?replicaSet=rs0"));
+                })
+            .build());
 
-    // setup event publishing
+    this.sensorHierarchies = this.mongoClient
+        .getDatabase(DATABASE_NAME)
+        .getCollection(COLLLECTION_NAME);
+    this.sensors = this.mongoClient
+        .getDatabase(DATABASE_NAME)
+        .getCollection(COLLECTION_SENSORS);
+
+    this.session = this.mongoClient.startSession();
+
+    this.initDatabase();
+
     if (Config.EVENT_PUBLISHING) {
       this.eventPublisher = new KafkaPublisher(Config.KAFKA_BOOTSTRAP_SERVERS, Config.KAFKA_TOPIC);
     } else {
@@ -77,41 +100,60 @@ public final class SensorHierarchyRepository {
     }
 
     this.setDefaultSensorHierarchy();
-
   }
 
-  private void init() {
+  /**
+   * Create the repository.
+   *
+   * @throws ConfigurationRepositoryException When there occurs an error within the repository.
+   */
+  public SensorHierarchyRepository(final String host, final int port) {
+    this(host, String.valueOf(port));
+  }
+
+  /**
+   * Initialize the database.
+   */
+  private void initDatabase() {
     final IndexOptions indexOptions = new IndexOptions();
     indexOptions.unique(true);
-    this.collection
-        .createIndex(Indexes.text(IDENTIFIER_FIELD), indexOptions);
+    this.sensors
+        .createIndex(Indexes.text(SensorHierarchyRepository.IDENTIFIER_FIELD), indexOptions);
+    this.sensorHierarchies
+        .createIndex(Indexes.text(SensorHierarchyRepository.IDENTIFIER_FIELD), indexOptions);
   }
 
 
   /**
-   * Set initial configuration to the database. The operation is encapsulated and does not throw an
-   * exception.
-   *
-   * @throws ConfigurationRepositoryException When the initial sensor hierarchy cannot be put to the
-   *         repository.
+   * Set the default sensor hierarchy.
    */
   private void setDefaultSensorHierarchy() {
     LOGGER.info("Set default sensor hierarchy");
 
-    final SensorRegistry sensorHierarchy = this.getDefaultSensorHierarchy(); // NOPMD
+    final SensorRegistry existingHierarchy =
+        this.getSensorHierarchy(DEFAULT_HIERARCHY_IDENTIFIER);
+    if (existingHierarchy == null) {
+      LOGGER.info("Initial sensor hierarchy does not exist. Creating Hierarchy...");
+      final SensorRegistry sensorHierarchy = this.getDefaultSensorHierarchy(); // NOPMD
 
-    try {
       this.createSensorHierarchy(sensorHierarchy);
-      this.publishHierarchy(sensorHierarchy, Event.SENSOR_REGISTRY_STATUS);
-    } catch (SensorHierarchyExistsException | SensorHierarchyRepositoryException e) {
-      LOGGER.error("Could not load default sensor registry", e);
+
+      LOGGER.info("Initial hierarchy created.");
+
+      // TODO emit more precise events
+      this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, sensorHierarchy.toJson());
+    } else {
+      // TODO emit more precise events
+      this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, existingHierarchy.toJson());
     }
+
+    LOGGER.info("Initial hierarchy published.");
   }
 
   /**
    * Get the default sensor hierarchy.
    *
-   * @return The default sensor hierarchy as JSON
+   * @return The default sensor hierarchy as JSON.
    */
   private SensorRegistry getDefaultSensorHierarchy() {
     if (Config.DEMO) {
@@ -154,142 +196,282 @@ public final class SensorHierarchyRepository {
   /**
    * Get the empty sensor hierarchy.
    *
-   * @return An empty sensor hierarchy with one aggregated sensor called "root" and no children
+   * @return An empty sensor hierarchy with one aggregated sensor called
+   *         {@link #DEFAULT_HIERARCHY_IDENTIFIER} and no children
    *
    */
   private SensorRegistry getEmptySensorHierarchy() {
-    return new MutableSensorRegistry("root", "My Company");
+    return new MutableSensorRegistry(DEFAULT_HIERARCHY_IDENTIFIER, "My Company");
   }
 
 
   /**
-   * Close the repository.
+   * Stop the repository.
    */
-  public void close() {
+  public void stop() {
+    this.session.close();
     this.mongoClient.close();
   }
 
 
+  /**
+   * Get a sensor hierarchy for an identifier.
+   *
+   * @param identifier The identifier of the registry
+   * @return Returns the sensor registry or null, if the registry is not found.
+   */
   public SensorRegistry getSensorHierarchy(final String identifier) {
-    final Document result = this.collection
-        .find(Filters.eq(IDENTIFIER_FIELD, identifier))
+    final Document result = this.sensorHierarchies
+        .find(Filters.eq(SensorHierarchyRepository.IDENTIFIER_FIELD, identifier))
         .first();
 
-    return result != null
-        ? SensorRegistry.fromJson(result.toJson())
-        : null;
+    return result == null
+        ? null
+        : SensorRegistry.fromJson(result.toJson());
   }
 
+  /**
+   * Get all sensor hierarchy that exist currently.
+   *
+   * @return A list of sensor hierarchies.
+   */
   public List<SensorRegistry> getAllSensorHierarchies() {
-    final MongoIterable<SensorRegistry> results = this.collection
+    final MongoIterable<SensorRegistry> results = this.sensorHierarchies
         .find()
         .map(result -> SensorRegistry.fromJson(result.toJson()));
     return Lists.newArrayList(results);
   }
 
-  // node version
-  public void createSensorHierarchy(final SensorRegistry hierarchy)
-      throws SensorHierarchyExistsException, SensorHierarchyRepositoryException {
-    try {
-      // check if any sensor of the hierarchy already exists in any hierarchy
-      final List<Bson> filter = hierarchy
-          .getTopLevelSensor()
-          .flat()
-          .stream()
-          .map(sensor -> Filters.eq("_id", sensor.getIdentifier()))
-          .collect(Collectors.toList());
-      final FindIterable<Document> result = this.collection
-          .find(Filters.or(filter));
+  /**
+   * Create a sensor hierarchy.
+   *
+   * @param hierarchy The sensor hierarchy that should be created.
+   * @return An empty Optional if the operation succeeded, else an Optional of a list of strings,
+   *         representing the collided sensor identifiers.
+   */
+  public Optional<List<String>> createSensorHierarchy(final SensorRegistry hierarchy) {
+    this.session.startTransaction();
 
-      if (!result.iterator().hasNext()) {
-        // all sensors new
-        // insert nodes into collection
-        final List<Document> nodes = hierarchy
-            .getTopLevelSensor()
-            .flat()
-            .stream()
-            .map(sensor -> {
-              final Document doc = new Document();
-              doc.append("_id", sensor.getIdentifier());
-              doc.append("name", sensor.getName());
-              if (sensor instanceof AggregatedSensor) {
-                final List<String> childrenIds = ((AggregatedSensor) sensor)
-                    .getChildren()
-                    .stream()
-                    .map(child -> child.getIdentifier())
-                    .collect(Collectors.toList());
-                doc.append("children", childrenIds);
-              }
-              return doc;
-            })
-            .collect(Collectors.toList());
+    final List<String> globalCollisions = this
+        .getSensorIdentifiersAccordingToFilter(
+            Filters.or(this.buildIdFiltersForSensors(hierarchy)));
+    if (globalCollisions.size() > ZERO) {
+      this.session.abortTransaction();
+      return Optional.of(globalCollisions);
+    }
 
-        this.collection
-            .insertMany(nodes);
-      } else {
-        // some sensor not new
-        throw new SensorHierarchyExistsException();
-      }
+    final List<String> hierarchyCollisions = this.getCollisionsWithinHierarchy(hierarchy);
+    if (hierarchyCollisions.size() > ZERO) {
+      this.session.abortTransaction();
+      return Optional.of(hierarchyCollisions);
     }
-    // handle write-related errors
-    catch (final MongoWriteException e) {
-      // if duplicate index -> hierarchy already exists
-      if (e.getError().getCode() == 11000) {
-        throw new SensorHierarchyExistsException();
-      }
-      // handle other errors
-      else {
-        throw new SensorHierarchyRepositoryException();
-      }
-    }
-    // handle non-write-related errors
-    catch (final Exception e) {
-      throw new SensorHierarchyRepositoryException();
-    }
+
+    this.sensors
+        .insertMany(this.buildPairsOfSensorsAndHierarchy(hierarchy));
+    this.sensorHierarchies.insertOne(Document.parse(hierarchy.toJson()));
+
+    // TODO emit more precise events
+    this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, hierarchy.toJson());
+
+    this.session.commitTransaction();
+    return Optional.empty();
   }
 
-  public void updateSensorHierarchy(final SensorRegistry hierarchy)
+  /**
+   * Get all sensors that already exist in the database. Two sensors are considered to be equal, if
+   * their identifiers are equal. The operation filters all sensors in the database with respect
+   * given filter.
+   *
+   * @param filter The filter used to filter the sensors.
+   * @return A List of sensor identifiers for all sensors that match the filter.
+   */
+  private List<String> getSensorIdentifiersAccordingToFilter(final Bson filter) {
+    final Iterator<Document> globalCollisions =
+        this.sensors.find(filter).iterator();
+    final List<String> acc = new ArrayList<>();
+    while (globalCollisions.hasNext()) {
+      final String collidedIdentifier =
+          globalCollisions.next().getString(SensorHierarchyRepository.IDENTIFIER_FIELD);
+      acc.add(collidedIdentifier);
+    }
+
+    return acc;
+  }
+
+  /**
+   * Update a sensor hierarchy.
+   *
+   * @param hierarchy The sensor hierarchy that should be updated.
+   * @return An empty Optional if the operation succeeded, else an Optional of a list of strings,
+   *         representing the collided sensor identifiers.
+   * @throws SensorHierarchyNotFoundException If the sensor hierarchy does not exist yet.
+   */
+  public Optional<List<String>> updateSensorHierarchy(final SensorRegistry hierarchy)
       throws SensorHierarchyNotFoundException {
-    final Document updatedDocument = Document.parse(hierarchy.toJson());
-    final Document result = this.collection
-        .findOneAndReplace(
-            Filters.eq(IDENTIFIER_FIELD, hierarchy.getTopLevelSensor().getIdentifier()),
-            updatedDocument);
-    if (result == null) {
+    this.session.startTransaction();
+
+    final SensorRegistry existingHierarchy =
+        this.getSensorHierarchy(
+            hierarchy.getTopLevelSensor().getIdentifier());
+
+    if (existingHierarchy == null) {
       throw new SensorHierarchyNotFoundException();
     }
-    this.publishHierarchy(hierarchy, Event.SENSOR_REGISTRY_CHANGED);
-  }
 
-  private void publishHierarchy(final SensorRegistry hierarchy, final Event type) {
-    if (hierarchy.getTopLevelSensor().getIdentifier().equals("root")) { // tmp only root sensor
-      this.eventPublisher.publish(type, hierarchy.toJson());
+    final List<String> globalCollisions =
+        this.getSensorIdentifiersAccordingToFilter(
+            Filters.or(this.buildPairsOfSensorsAndHierarchyExcludingThisHierarchy(hierarchy)));
+
+    if (globalCollisions.size() > ZERO) {
+      this.session.abortTransaction();
+      return Optional.of(globalCollisions);
     }
-  }
 
-  public void deleteSensorHierarchy(final String identifier)
-      throws SensorHierarchyNotFoundException, SensorHierarchyRepositoryException {
-    try {
-      final DeleteResult result = this.collection
-          .deleteOne(Filters.eq(IDENTIFIER_FIELD, identifier));
-      if (result.getDeletedCount() < 1) {
-        throw new SensorHierarchyNotFoundException();
+    final List<String> hierarchyCollisions = this.getCollisionsWithinHierarchy(hierarchy);
+    if (hierarchyCollisions.size() > ZERO) {
+      this.session.abortTransaction();
+      return Optional.of(hierarchyCollisions);
+    }
+
+    final List<SensorEvent> comparisonResult =
+        SensorHierarchyComparatorUtils.compareSensorHierarchies(existingHierarchy, hierarchy);
+
+    for (final SensorEvent event : comparisonResult) {
+      if (event instanceof SensorDeletedEvent) {
+        final Document doc = new Document();
+        doc.append(SensorHierarchyRepository.IDENTIFIER_FIELD, event.getSensor().getIdentifier());
+        this.sensors.deleteOne(doc);
+      } else if (event instanceof SensorAddedEvent) {
+        final Document doc = new Document();
+        doc.append(SensorHierarchyRepository.IDENTIFIER_FIELD, event.getSensor().getIdentifier());
+        doc.append(SensorHierarchyRepository.TOP_LEVEL_IDENTIFIER_FIELD,
+            hierarchy.getTopLevelSensor().getIdentifier());
+        this.sensors.insertOne(doc);
       }
-    } catch (final Exception e) {
-      throw new SensorHierarchyRepositoryException();
     }
+
+    this.sensorHierarchies.replaceOne(
+        Filters.eq(SensorHierarchyRepository.IDENTIFIER_FIELD,
+            hierarchy.getTopLevelSensor().getIdentifier()),
+        Document.parse(hierarchy.toJson()));
+
+    // TODO emit more precise events
+    this.eventPublisher.publish(Event.SENSOR_REGISTRY_CHANGED, hierarchy.toJson());
+
+    this.session.commitTransaction();
+    return Optional.empty();
   }
 
-  @SuppressWarnings("serial")
-  public class SensorHierarchyRepositoryException extends Exception {
+  /**
+   * Build a list of Bson Documents that act as filter for all existing sensors that are in other
+   * existing sensor hierarchies except in the given hierarchy.
+   *
+   * @param hierarchy The sensor hierarchy to exclude all sensor from.
+   * @return A list of sensor identifiers matching the query.
+   */
+  private List<Bson> buildPairsOfSensorsAndHierarchyExcludingThisHierarchy(
+      final SensorRegistry hierarchy) {
+    final List<Document> pairs = this.buildPairsOfSensorsAndHierarchy(hierarchy);
+    return pairs
+        .stream()
+        .map(document -> Filters.and(
+            Filters.eq(SensorHierarchyRepository.IDENTIFIER_FIELD,
+                document.getString(SensorHierarchyRepository.IDENTIFIER_FIELD)),
+            Filters.not(
+                Filters.eq(SensorHierarchyRepository.TOP_LEVEL_IDENTIFIER_FIELD,
+                    document.getString(SensorHierarchyRepository.TOP_LEVEL_IDENTIFIER_FIELD)))))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Get all colliding sensor identifiers within the hierarchy. Two sensors are colliding, iff they
+   * have the same identifier.
+   *
+   * @param hierarchy The hierarchy.
+   * @return The List of colliding identifiers.
+   */
+  private List<String> getCollisionsWithinHierarchy(final SensorRegistry hierarchy) {
+    return hierarchy.getTopLevelSensor()
+        .flat()
+        .stream()
+        .filter(sensor -> {
+          int count = 0;
+          for (final Sensor sensor2 : hierarchy.getTopLevelSensor().flat()) {
+            if (sensor.getIdentifier().equals(sensor2.getIdentifier())) {
+              count++;
+            }
+          }
+          return count > 1;
+        })
+        .map(sensor -> sensor.getIdentifier())
+        .collect(Collectors.toList());
+  }
+
+
+  /**
+   * Build a list of BSON filters, containing key-value pairs for the identifiers for aggregated
+   * sensors.
+   *
+   * @param hierarchy The hierarchy for which the pairs should be created,
+   * @return A List of filters, where the key is {@link #IDENTIFIER_FIELD} and the value is the
+   *         identifier of the respective aggregated sensor.
+   */
+  private List<Bson> buildIdFiltersForSensors(final SensorRegistry hierarchy) {
+    return hierarchy
+        .flat()
+        .stream()
+        .filter(sensor -> sensor instanceof AggregatedSensor)
+        .map(sensor -> Filters.eq(SensorHierarchyRepository.IDENTIFIER_FIELD,
+            sensor.getIdentifier()))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Build a list of documents, that represent entries for the collection specified by
+   * {@link #IDENTIFIER_FIELD} and the other by # {@link #COLLECTION_SENSORS}.
+   *
+   * @param hierarchy The hierarchy to create the documents for.
+   * @return The List of Documents, each consisting of two fields, the {@link #IDENTIFIER_FIELD} and
+   *         the {@link #TOP_LEVEL_IDENTIFIER_FIELD} representing the identifier of the sensor
+   *         identifier and the identifier of the top level sensor.
+   */
+  private List<Document> buildPairsOfSensorsAndHierarchy(
+      final SensorRegistry hierarchy) {
+    return hierarchy
+        .flat()
+        .stream()
+        .filter(sensor -> sensor instanceof AggregatedSensor)
+        .map(sensor -> {
+          final Document doc = new Document();
+          doc.append(SensorHierarchyRepository.IDENTIFIER_FIELD, sensor.getIdentifier());
+          doc.append(SensorHierarchyRepository.TOP_LEVEL_IDENTIFIER_FIELD,
+              hierarchy.getTopLevelSensor().getIdentifier());
+          return doc;
+        })
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Delete a sensor hierarchy by identifier.
+   *
+   * @param identifier The identifier for the hierarchy that should be deleted.
+   * @throws SensorHierarchyNotFoundException If the hierarchy that should be deleted is not found.
+   */
+  public void deleteSensorHierarchy(final String identifier)
+      throws SensorHierarchyNotFoundException {
+    final DeleteResult result = this.sensorHierarchies
+        .deleteOne(Filters.eq(SensorHierarchyRepository.IDENTIFIER_FIELD, identifier));
+    if (result.getDeletedCount() > ZERO) {
+      throw new SensorHierarchyNotFoundException();
+    }
 
   }
+
+  /**
+   * Exception indicating the hierarchy does not exist in the database.
+   */
   @SuppressWarnings("serial")
   public class SensorHierarchyNotFoundException extends Exception {
-
-  }
-  @SuppressWarnings("serial")
-  public class SensorHierarchyExistsException extends Exception {
 
   }
 }

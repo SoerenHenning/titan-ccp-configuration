@@ -2,16 +2,17 @@ package titan.ccp.configuration.api;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonParseException;
+import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import org.bson.json.JsonParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spark.Service;
 import titan.ccp.configuration.Config;
-import titan.ccp.configuration.api.SensorHierarchyRepository.SensorHierarchyExistsException;
 import titan.ccp.configuration.api.SensorHierarchyRepository.SensorHierarchyNotFoundException;
-import titan.ccp.configuration.api.SensorHierarchyRepository.SensorHierarchyRepositoryException;
-import titan.ccp.configuration.api.util.TopLevelSensor;
+import titan.ccp.configuration.api.util.jsondeserialization.CollisionsType;
+import titan.ccp.configuration.api.util.jsondeserialization.TopLevelSensorType;
 import titan.ccp.model.sensorregistry.SensorRegistry;
 
 /**
@@ -24,13 +25,16 @@ public final class RestApiServer {
   private static final String ACCESS_FORBIDDEN_MESSAGE = "Access forbidden";
   private static final String INTERNAL_SERVER_ERROR_MESSAGE = "Internal Server Error";
   private static final String NOT_FOUND_ERROR_MESSAGE = "Resource not found";
-  private static final String CONFLICT_ERROR_MESSAGE = "Resource already exists";
 
-  private static final String GET_SENSOR_HIERARCHY_PATH = "/sensor-hierarchy/:id";
+  private static final String GET_SENSOR_HIERARCHY_PATH =
+      "/sensor-hierarchy/:id"; // NOCS string occurs multiple times
   private static final String POST_SENSOR_HIERARCHY_PATH = "/sensor-hierarchy";
-  private static final String PUT_SENSOR_HIERARCHY_PATH = "/sensor-hierarchy/:id";
-  private static final String DELETE_SENSOR_HIERARCHY_PATH = "/sensor-hierarchy/:id";
-  private static final String GET_ALL_SENSOR_HIERARCHIES_PATH = "/sensor-hierarchy/";
+  private static final String PUT_SENSOR_HIERARCHY_PATH =
+      "/sensor-hierarchy/:id"; // NOCS string occurs multiple times
+  private static final String DELETE_SENSOR_HIERARCHY_PATH =
+      "/sensor-hierarchy/:id"; // NOCS string occurs multiple times
+  private static final String GET_SENSOR_HIERARCHIES_PATH =
+      "/sensor-hierarchy/";
 
   private static final Gson GSON = new GsonBuilder().create();
 
@@ -89,11 +93,11 @@ public final class RestApiServer {
     });
 
     // Get all sensor hierarchies
-    this.webService.get(GET_ALL_SENSOR_HIERARCHIES_PATH, (request, response) -> {
+    this.webService.get(GET_SENSOR_HIERARCHIES_PATH, (request, response) -> {
       return this.sensorHierarchyRepository
           .getAllSensorHierarchies()
           .stream()
-          .map(registry -> new TopLevelSensor(
+          .map(registry -> new TopLevelSensorType(
               registry.getTopLevelSensor().getIdentifier(),
               registry.getTopLevelSensor().getName()))
           .collect(Collectors.toList());
@@ -110,12 +114,18 @@ public final class RestApiServer {
       final SensorRegistry sensorRegistry = SensorRegistry.fromJson(request.body());
       if (topLevelSensorIdentifier != null
           && topLevelSensorIdentifier.equals(sensorRegistry.getTopLevelSensor().getIdentifier())) {
-        // TODO validate that hierarchy only contains existing machine sensors
-        // TODO validate uniqueness of aggregated sensors within the hierarchy
-        this.sensorHierarchyRepository.updateSensorHierarchy(sensorRegistry);
 
-        response.status(200); // NOCS HTTP response code: OK
-        return "OK";
+        // TODO validate uniqueness of aggregated sensors within the hierarchy
+        final Optional<List<String>> collisions =
+            this.sensorHierarchyRepository.updateSensorHierarchy(sensorRegistry);
+
+        if (collisions.isEmpty()) {
+          response.status(200); // NOCS HTTP response code: OK
+          return "";
+        } else {
+          response.status(409); // NOCS HTTP response code: Conflict
+          return RestApiServer.GSON.toJson(new CollisionsType(collisions.get()));
+        }
       } else {
         response.status(400); // NOCS HTTP response code: Bad Request
       }
@@ -127,9 +137,15 @@ public final class RestApiServer {
     this.webService.post(POST_SENSOR_HIERARCHY_PATH, (request, response) -> {
       try {
         final SensorRegistry registry = SensorRegistry.fromJson(request.body());
-        this.sensorHierarchyRepository.createSensorHierarchy(registry);
-        response.status(204); // NOCS HTTP response code: Created
-        return "OK";
+        final Optional<List<String>> collisions =
+            this.sensorHierarchyRepository.createSensorHierarchy(registry);
+        if (collisions.isEmpty()) {
+          response.status(204); // NOCS HTTP response code: Created
+          return "OK";
+        } else {
+          response.status(409); // NOCS HTTP response code: Conflict
+          return RestApiServer.GSON.toJson(new CollisionsType(collisions.get()));
+        }
       } catch (final JsonParseException e) {
         response.status(400); // NOCS HTTP response code: Bad Request
         return "";
@@ -139,23 +155,19 @@ public final class RestApiServer {
     this.webService.delete(DELETE_SENSOR_HIERARCHY_PATH, (request, response) -> {
       final String identifier = request.params("id");
       this.sensorHierarchyRepository.deleteSensorHierarchy(identifier);
-      return "OK";
+      return "";
     });
   }
 
   private void handleErrors() {
     // handle repository exceptions
-    this.webService.exception(SensorHierarchyRepositoryException.class, (e, request, response) -> {
-      response.status(500); // NOCS HTTP response code: Internal Server Error
-      response.body(INTERNAL_SERVER_ERROR_MESSAGE);
-    });
     this.webService.exception(SensorHierarchyNotFoundException.class, (e, request, response) -> {
       response.status(404); // NOCS HTTP response code: Not Found
       response.body(NOT_FOUND_ERROR_MESSAGE);
     });
-    this.webService.exception(SensorHierarchyExistsException.class, (e, request, response) -> {
-      response.status(409); // NOCS HTTP response code: Conflict
-      response.body(CONFLICT_ERROR_MESSAGE);
+    this.webService.exception(Exception.class, (e, request, response) -> {
+      response.status(500); // NOCS HTTP response code: Internal Server Error
+      response.body(INTERNAL_SERVER_ERROR_MESSAGE);
     });
   }
 
@@ -175,7 +187,7 @@ public final class RestApiServer {
       if (accessControlRequestMethod != null) {
         response.header("Access-Control-Allow-Methods", accessControlRequestMethod);
       }
-      return "OK";
+      return "";
     });
 
     this.webService.before((request, response) -> {

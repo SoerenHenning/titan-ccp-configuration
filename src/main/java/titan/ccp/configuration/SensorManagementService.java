@@ -23,7 +23,8 @@ public final class SensorManagementService {
    * Run the microservice.
    */
   public void run() {
-    this.sensorHierarchyRepository = new SensorHierarchyRepository();
+    this.sensorHierarchyRepository =
+        new SensorHierarchyRepository(Config.MONGODB_HOST, Config.MONGODB_PORT);
 
     this.webServer = new RestApiServer(
         Config.WEBSERVER_PORT,
@@ -35,13 +36,13 @@ public final class SensorManagementService {
   /**
    * Stop the microservice.
    */
-  private void stop() {
+  public void stop() {
     LOGGER.warn("Shutting down Configuration microservice.");
     if (this.webServer != null) {
       this.webServer.stop();
     }
     if (this.sensorHierarchyRepository != null) {
-      this.sensorHierarchyRepository.close();
+      this.sensorHierarchyRepository.stop();
     }
     System.exit(1); // NOPMD exit application manually
   }

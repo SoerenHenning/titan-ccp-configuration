@@ -3,7 +3,7 @@
     "name": "My Company",
     "children": [
         {
-            "identifier": "root.comcenter",
+            "identifier": "comcenter",
             "name": "Computing Center",
             "children": [
                 {
@@ -21,7 +21,7 @@
             ]
         },
         {
-            "identifier": "root.printers",
+            "identifier": "printers",
             "name": "Printing",
             "children": [
                 {
@@ -35,7 +35,7 @@
             ]
         },
         {
-            "identifier": "root.cooling",
+            "identifier": "cooling",
             "name": "Cooling",
             "children": [
                 {
@@ -43,7 +43,7 @@
                     "name": "Main Fan"
                 },
                 {
-                    "identifier": "root.ac",
+                    "identifier": "ac",
                     "name": "AC System",
                     "children": [
                         {
