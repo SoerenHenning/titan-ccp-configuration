@@ -21,10 +21,6 @@ public final class Config { // NOPMD utility class alert
       CONFIGURATION.getString(ConfigurationKeys.KAFKA_TOPIC);
   public static final String KAFKA_BOOTSTRAP_SERVERS =
       CONFIGURATION.getString(ConfigurationKeys.KAFKA_BOOTSTRAP_SERVERS);
-  public static final int FAILSAFE_DELAYINMILLIS =
-      CONFIGURATION.getInt(ConfigurationKeys.FAILSAFE_DELAYINMILLIS);
-  public static final int FAILSAFE_MAXRETRIES =
-      CONFIGURATION.getInt(ConfigurationKeys.FAILSAFE_MAXRETRIES);
   public static final int WEBSERVER_PORT =
       CONFIGURATION.getInt(ConfigurationKeys.WEBSERVER_PORT);
   public static final boolean CORS = CONFIGURATION.getBoolean(ConfigurationKeys.CORS);

@@ -136,9 +136,12 @@ public final class SensorHierarchyRepository {
       LOGGER.info("Initial sensor hierarchy does not exist. Creating Hierarchy...");
       final SensorRegistry sensorHierarchy = this.getDefaultSensorHierarchy(); // NOPMD
 
-      this.createSensorHierarchy(sensorHierarchy);
-
-      LOGGER.info("Initial hierarchy created.");
+      final Optional<List<String>> collisions = this.createSensorHierarchy(sensorHierarchy);
+      if (collisions.isEmpty()) {
+        LOGGER.info("Initial hierarchy created.");
+      } else {
+        LOGGER.info("Initial hierarchy already exists.");
+      }
 
       // TODO emit more precise events
       this.eventPublisher.publish(Event.SENSOR_REGISTRY_STATUS, sensorHierarchy.toJson());

@@ -38,18 +38,15 @@ dependencies {
 
 
   //compile('org.industrial-devops:titan-ccp-common:0.0.1-SNAPSHOT') { changing = true }
-  compile 'com.google.guava:guava:20.0'
-  compile 'com.sparkjava:spark-core:2.7.2'
-  compile 'redis.clients:jedis:2.9.0'
-  compile 'org.apache.kafka:kafka-clients:1.0.0'
-  compile 'org.slf4j:slf4j-simple:1.7.25'
-  compile 'net.jodah:failsafe:2.0.1'
+  implementation 'com.google.guava:guava:20.0'
+  implementation 'com.sparkjava:spark-core:2.7.2'
+  implementation 'org.apache.kafka:kafka-clients:1.0.0'
+  implementation 'org.slf4j:slf4j-simple:1.7.25'
+  implementation 'org.mongodb:mongodb-driver-sync:3.11.2'
+  implementation 'com.google.code.gson:gson:2.8.2'
 
   // Use JUnit test framework
   testCompile 'junit:junit:4.12'
-  
-  compile 'org.mongodb:mongodb-driver-sync:3.11.2'
-  implementation 'com.google.code.gson:gson:2.8.2'
 }
 
 mainClassName = "titan.ccp.configuration.ConfigurationService"

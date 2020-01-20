@@ -135,6 +135,11 @@ public final class RestApiServer {
 
     // Create sensor hierarchy
     this.webService.post(POST_SENSOR_HIERARCHY_PATH, (request, response) -> {
+      if (Config.DEMO) {
+        response.status(403); // NOCS HTTP response code
+        return ACCESS_FORBIDDEN_MESSAGE;
+      }
+
       try {
         final SensorRegistry registry = SensorRegistry.fromJson(request.body());
         final Optional<List<String>> collisions =
