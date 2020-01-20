@@ -34,10 +34,7 @@ allprojects {
 }
 
 dependencies {
-	compile project(':titanccp-common') // for local changes
-
-
-  //compile('org.industrial-devops:titan-ccp-common:0.0.1-SNAPSHOT') { changing = true }
+  compile('org.industrial-devops:titan-ccp-common:0.0.1-SNAPSHOT') { changing = true }
   implementation 'com.google.guava:guava:20.0'
   implementation 'com.sparkjava:spark-core:2.7.2'
   implementation 'org.apache.kafka:kafka-clients:1.0.0'
