@@ -28,8 +28,8 @@ public final class SensorHierarchyComparatorUtils {
 
     final List<SensorEvent> acc = new ArrayList<>();
 
-    final Collection<Sensor> oldHierarchySensors = oldHierarchy.flat();
-    final Collection<Sensor> newHierarchySensors = newHierarchy.flat();
+    final Collection<Sensor> oldHierarchySensors = oldHierarchy.flatten();
+    final Collection<Sensor> newHierarchySensors = newHierarchy.flatten();
 
     // find deleted sensors
     for (final Sensor oldSensor : oldHierarchySensors) {
@@ -59,7 +59,12 @@ public final class SensorHierarchyComparatorUtils {
       }
     }
 
-    // TODO check for changed sensors, according to the requirements of the aggregation service.
+    // TODO:
+    // Identify changed sensors, according to the requirements of the aggregation service.
+    // This is a feature that should be implemented, when the aggregation logic in the aggregation
+    // service is updated, as it depends on the aggregation logic whether a sensor is considered as
+    // 'changed'.
+
     return acc;
   }
 

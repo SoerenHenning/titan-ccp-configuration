@@ -258,13 +258,13 @@ public final class SensorHierarchyRepository {
     final List<String> globalCollisions = this
         .getSensorIdentifiersAccordingToFilter(
             Filters.or(this.buildIdFiltersForSensors(hierarchy)));
-    if (globalCollisions.size() > ZERO) {
+    if (!globalCollisions.isEmpty()) {
       this.session.abortTransaction();
       return Optional.of(globalCollisions);
     }
 
     final List<String> hierarchyCollisions = this.getCollisionsWithinHierarchy(hierarchy);
-    if (hierarchyCollisions.size() > ZERO) {
+    if (!hierarchyCollisions.isEmpty()) {
       this.session.abortTransaction();
       return Optional.of(hierarchyCollisions);
     }
@@ -325,13 +325,13 @@ public final class SensorHierarchyRepository {
         this.getSensorIdentifiersAccordingToFilter(
             Filters.or(this.buildPairsOfSensorsAndHierarchyExcludingThisHierarchy(hierarchy)));
 
-    if (globalCollisions.size() > ZERO) {
+    if (!globalCollisions.isEmpty()) {
       this.session.abortTransaction();
       return Optional.of(globalCollisions);
     }
 
     final List<String> hierarchyCollisions = this.getCollisionsWithinHierarchy(hierarchy);
-    if (hierarchyCollisions.size() > ZERO) {
+    if (!hierarchyCollisions.isEmpty()) {
       this.session.abortTransaction();
       return Optional.of(hierarchyCollisions);
     }
@@ -395,11 +395,11 @@ public final class SensorHierarchyRepository {
    */
   private List<String> getCollisionsWithinHierarchy(final SensorRegistry hierarchy) {
     return hierarchy.getTopLevelSensor()
-        .flat()
+        .flatten()
         .stream()
         .filter(sensor -> {
           int count = 0;
-          for (final Sensor sensor2 : hierarchy.getTopLevelSensor().flat()) {
+          for (final Sensor sensor2 : hierarchy.flatten()) {
             if (sensor.getIdentifier().equals(sensor2.getIdentifier())) {
               count++;
             }
@@ -421,7 +421,7 @@ public final class SensorHierarchyRepository {
    */
   private List<Bson> buildIdFiltersForSensors(final SensorRegistry hierarchy) {
     return hierarchy
-        .flat()
+        .flatten()
         .stream()
         .filter(sensor -> sensor instanceof AggregatedSensor)
         .map(sensor -> Filters.eq(SensorHierarchyRepository.IDENTIFIER_FIELD,
@@ -441,7 +441,7 @@ public final class SensorHierarchyRepository {
   private List<Document> buildPairsOfSensorsAndHierarchy(
       final SensorRegistry hierarchy) {
     return hierarchy
-        .flat()
+        .flatten()
         .stream()
         .filter(sensor -> sensor instanceof AggregatedSensor)
         .map(sensor -> {
