@@ -17,6 +17,10 @@
             "name": "remaining-child",
             "children": [
                 {
+		            "identifier": "machine-3",
+		            "name": "machine-3"
+		        },
+		        {
 		            "identifier": "machine-2",
 		            "name": "machine-2"
 		        }

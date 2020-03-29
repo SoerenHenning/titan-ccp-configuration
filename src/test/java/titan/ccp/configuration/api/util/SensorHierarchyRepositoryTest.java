@@ -1,6 +1,9 @@
 package titan.ccp.configuration.api.util;
 
+import static org.hamcrest.CoreMatchers.anyOf;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import com.google.common.io.Resources; // NOCS seperate this line
 import java.io.IOException;
 import java.net.URL;
@@ -31,16 +34,19 @@ public class SensorHierarchyRepositoryTest {
         SensorRegistry.fromJson(Resources.toString(url2, StandardCharsets.UTF_8));
 
 
-    final List<SensorEvent> result =
+    final List<SensorChangedEvent> result =
         SensorHierarchyComparatorUtils.compareSensorHierarchies(oldHierarchy, newHierarchy);
 
-    assertEquals(result.size(), 2);
+    assertEquals(4, result.size());
 
     result.forEach(event -> {
-      if (event instanceof SensorAddedEvent) {
-        assertEquals(event.getSensor().getIdentifier(), "new-child");
-      } else if (event instanceof SensorDeletedEvent) {
-        assertEquals(event.getSensor().getIdentifier(), "old-child");
+      if (event.getEventType() == EventType.SENSOR_ADDED) {
+        assertEquals("new-child", event.getSensor().getIdentifier());
+      } else if (event.getEventType() == EventType.SENSOR_DELETED) {
+        assertEquals("old-child", event.getSensor().getIdentifier());
+      } else if (event.getEventType() == EventType.SENSOR_MOVED) {
+        assertThat(event.getSensor().getIdentifier(),
+            anyOf(equalTo("machine-1"), equalTo("machine-2")));
       }
     });
   }

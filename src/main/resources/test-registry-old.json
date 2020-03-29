@@ -9,6 +9,10 @@
                 {
 		            "identifier": "machine-1",
 		            "name": "machine-1"
+		        },
+		        {
+		            "identifier": "machine-2",
+		            "name": "machine-2"
 		        }
             ]
         },
@@ -17,8 +21,8 @@
             "name": "remaining-child",
             "children": [
                 {
-		            "identifier": "machine-2",
-		            "name": "machine-2"
+		            "identifier": "machine-3",
+		            "name": "machine-3"
 		        }
             ]
         }

@@ -169,10 +169,12 @@ public final class RestApiServer {
     this.webService.exception(SensorHierarchyNotFoundException.class, (e, request, response) -> {
       response.status(404); // NOCS HTTP response code: Not Found
       response.body(NOT_FOUND_ERROR_MESSAGE);
+      LOGGER.error("", e);
     });
     this.webService.exception(Exception.class, (e, request, response) -> {
       response.status(500); // NOCS HTTP response code: Internal Server Error
       response.body(INTERNAL_SERVER_ERROR_MESSAGE);
+      LOGGER.error("", e);
     });
   }
 
