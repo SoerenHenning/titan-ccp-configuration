@@ -20,9 +20,9 @@ public final class SensorManagementService {
   private SensorHierarchyRepository sensorHierarchyRepository;
 
   /**
-   * Run the microservice.
+   * Start the microservice.
    */
-  public void run() {
+  public void start() {
     this.sensorHierarchyRepository =
         new SensorHierarchyRepository(Config.MONGODB_HOST, Config.MONGODB_PORT);
 
@@ -37,7 +37,7 @@ public final class SensorManagementService {
    * Stop the microservice.
    */
   public void stop() {
-    LOGGER.warn("Shutting down Configuration microservice.");
+    LOGGER.warn("Shutting down Sensor Management microservice.");
     if (this.webServer != null) {
       this.webServer.stop();
     }
@@ -48,6 +48,6 @@ public final class SensorManagementService {
   }
 
   public static void main(final String[] args) {
-    new SensorManagementService().run();
+    new SensorManagementService().start();
   }
 }
