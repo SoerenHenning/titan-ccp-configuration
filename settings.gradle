@@ -1,4 +1,4 @@
-rootProject.name = 'titanccp-configuration'
+rootProject.name = 'titanccp-sensormanagement'
 
 // local import of titanccp-common library
 //include ':titanccp-common'

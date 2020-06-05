@@ -46,7 +46,7 @@ dependencies {
   testCompile 'junit:junit:4.12'
 }
 
-mainClassName = "titan.ccp.configuration.ConfigurationService"
+mainClassName = "titan.ccp.configuration.SensorManagementService"
 
 pmd {
   ruleSets = [] // Gradle requires to clean the rule sets first
