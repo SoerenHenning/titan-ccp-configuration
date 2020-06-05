@@ -1,4 +1,4 @@
-package titan.ccp.configuration.api;
+package titan.ccp.configuration.api; // NOPMD see !8
 
 import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
@@ -42,7 +42,7 @@ import titan.ccp.model.sensorregistry.SensorRegistry;
 /**
  * Wrapper for the database access for the sensor hierarchy.
  */
-public final class SensorHierarchyRepository {
+public final class SensorHierarchyRepository { // NOPMD see !8
 
   private static final Logger LOGGER = LoggerFactory.getLogger(SensorHierarchyRepository.class);
 
@@ -469,7 +469,7 @@ public final class SensorHierarchyRepository {
 
       } else {
         // machine sensor
-        final List<String> parents = this.getMachineSensorsIdentifiersAccordingToFilter(
+        final List<String> parents = this.getMachineSensorsIdentifiersAccordingToFilter(// NOPMD
             Filters.eq(IDENTIFIER_FIELD, event.getSensor().getIdentifier()));
         // TODO emit event with format (sensorIdentifier, parentIdentifiers[])
         if (LOGGER.isInfoEnabled()) {
@@ -596,16 +596,15 @@ public final class SensorHierarchyRepository {
         .flatten()
         .stream()
         .filter(sensor -> sensor instanceof MachineSensor)
-        .map(sensor -> {
-          final Document doc = new Document();
-          doc.append(SensorHierarchyRepository.IDENTIFIER_FIELD, sensor.getIdentifier());
-          doc.append(SensorHierarchyRepository.TOP_LEVEL_IDENTIFIER_FIELD,
-              hierarchy.getTopLevelSensor().getIdentifier());
-          final Sensor parent = sensor.getParent().orElse(null);
-          final String parentIdentifier = PARENT_FIELD == null ? null : parent.getIdentifier();
-          doc.append(SensorHierarchyRepository.PARENT_FIELD, parentIdentifier);
-          return doc;
-        })
+        .map(sensor -> new Document()
+            .append(
+                SensorHierarchyRepository.IDENTIFIER_FIELD, sensor.getIdentifier())
+            .append(
+                SensorHierarchyRepository.TOP_LEVEL_IDENTIFIER_FIELD,
+                hierarchy.getTopLevelSensor().getIdentifier())
+            .append(
+                SensorHierarchyRepository.PARENT_FIELD,
+                sensor.getParent().map(p -> p.getIdentifier()).orElse(null)))
         .collect(Collectors.toList());
   }
 
@@ -629,7 +628,7 @@ public final class SensorHierarchyRepository {
    * Exception indicating the hierarchy does not exist in the database.
    */
   @SuppressWarnings("serial")
-  public class SensorHierarchyNotFoundException extends Exception {
+  public static class SensorHierarchyNotFoundException extends Exception {
 
   }
 }
