@@ -460,19 +460,25 @@ public final class SensorHierarchyRepository {
     comparisonResult.forEach(event -> {
       if (event.getSensor() instanceof AggregatedSensor) {
         // TODO emit event with format (sensorIdentifier, [parentIdentifier])
-        final AggregatedSensor parent = event.getSensor().getParent().orElse(null);
-        final String msg = "Event: '" + event.getSensor().getIdentifier()
-            + "' (Sensor Group) | Parent: " + (parent == null ? "none" : parent.getIdentifier());
-        LOGGER.info(msg);
+        if (LOGGER.isInfoEnabled()) {
+          LOGGER.info(
+              "Event: '{}' (Sensor Group) | Parent: {}",
+              event.getSensor().getIdentifier(),
+              event.getSensor().getParent().map(p -> p.getIdentifier()).orElse("none"));
+        }
+
       } else {
         // machine sensor
         final List<String> parents = this.getMachineSensorsIdentifiersAccordingToFilter(
             Filters.eq(IDENTIFIER_FIELD, event.getSensor().getIdentifier()));
         // TODO emit event with format (sensorIdentifier, parentIdentifiers[])
-        final String msg = "Event: '" + event.getSensor().getIdentifier()
-            + "' (Machine Sensor) | Parents: ["
-            + parents.stream().reduce((acc, next) -> acc + ", " + next).get() + "]";
-        LOGGER.info(msg);
+        if (LOGGER.isInfoEnabled()) {
+          LOGGER.info(
+              "Event: '{}' (Machine Sensor) | Parents: {}",
+              event.getSensor().getIdentifier(),
+              parents.stream().collect(Collectors.joining(", ", "[", "]")));
+        }
+
       }
     });
   }
