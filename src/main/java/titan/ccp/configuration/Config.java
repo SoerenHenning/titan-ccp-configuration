@@ -1,14 +1,14 @@
 package titan.ccp.configuration;
 
 import org.apache.commons.configuration2.Configuration;
-import titan.ccp.common.configuration.Configurations;
+import titan.ccp.common.configuration.ServiceConfigurations;
 
 /**
  * Utility class that wraps the access to the config files.
  */
 public final class Config { // NOPMD utility class alert
 
-  private static final Configuration CONFIGURATION = Configurations.create();
+  private static final Configuration CONFIGURATION = ServiceConfigurations.createWithDefaults();
 
   public static final String MONGODB_HOST =
       CONFIGURATION.getString(ConfigurationKeys.MONGODB_HOST);
