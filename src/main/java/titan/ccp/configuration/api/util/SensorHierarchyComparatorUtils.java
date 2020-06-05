@@ -60,8 +60,8 @@ public final class SensorHierarchyComparatorUtils {
         }
       }
       if (deleted) {
-        acc.add(new SensorChangedEvent(oldSensor, EventType.SENSOR_DELETED)); // NOPMD instantiate
-                                                                              // object within loop
+        acc.add(new SensorChangedEvent(oldSensor, EventType.SENSOR_DELETED)); // NOPMD
+        // PMD: instantiate object within loop is required
       }
     }
   }
@@ -85,17 +85,17 @@ public final class SensorHierarchyComparatorUtils {
           final boolean isParentDifferent =
               SensorHierarchyComparatorUtils.isParentDifferent(oldSensor, newSensor);
           if (isParentDifferent) {
-            moved = true;
+            moved = true; // NOPMD
           }
           break;
         }
       }
       if (added) {
-        acc.add(new SensorChangedEvent(newSensor, EventType.SENSOR_ADDED)); // NOPMD instantiate
-                                                                            // object within loop
+        acc.add(new SensorChangedEvent(newSensor, EventType.SENSOR_ADDED)); // NOPMD
+        // PMD: instantiate object within loop is required
       } else if (moved) {
-        acc.add(new SensorChangedEvent(newSensor, EventType.SENSOR_MOVED)); // NOPMD instantiate
-                                                                            // object within loop
+        acc.add(new SensorChangedEvent(newSensor, EventType.SENSOR_MOVED)); // NOPMD
+        // PMD: instantiate object within loop is required
       }
     }
   }
