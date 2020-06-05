@@ -1,1 +1,5 @@
 rootProject.name = 'titanccp-configuration'
+
+// local import of titanccp-common library
+//include ':titanccp-common'
+//project(':titanccp-common').projectDir = new File(settingsDir, "../common") // for local changes
