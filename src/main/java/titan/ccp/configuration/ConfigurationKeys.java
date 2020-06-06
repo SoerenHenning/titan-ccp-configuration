@@ -11,9 +11,11 @@ public final class ConfigurationKeys { // NOPMD
 
   public static final String KAFKA_TOPIC = "kafka.topic";
 
-  public static final String MONGODB_HOST = "mongodb.host";
+  // public static final String MONGODB_HOST = "mongodb.host";
 
-  public static final String MONGODB_PORT = "mongodb.port";
+  // public static final String MONGODB_PORT = "mongodb.port";
+
+  public static final String MONGODB_CONNECTION_URL = "mongodb.connection.url";
 
   public static final String DEMO = "demo";
 

@@ -23,8 +23,7 @@ public final class SensorManagementService {
    * Start the microservice.
    */
   public void start() {
-    this.sensorHierarchyRepository =
-        new SensorHierarchyRepository(Config.MONGODB_HOST, Config.MONGODB_PORT);
+    this.sensorHierarchyRepository = new SensorHierarchyRepository(Config.MONGODB_CONNECTION_URL);
 
     this.webServer = new RestApiServer(
         Config.WEBSERVER_PORT,

@@ -55,12 +55,9 @@ public final class SensorHierarchyRepository { // NOPMD see !8
   private static final String TOP_LEVEL_IDENTIFIER_FIELD = "topLevelSensor";
   private static final String DEFAULT_HIERARCHY_IDENTIFIER = "root";
 
-  private static final int ZERO = 0;
-  private static final int ONE = 1;
-
   private final EventPublisher eventPublisher;
-
   private final MongoClient mongoClient;
+  private final ClientSession session;
 
   /**
    * Schema consists of the properties of the sensor hierarchy as json where the index is
@@ -80,23 +77,22 @@ public final class SensorHierarchyRepository { // NOPMD see !8
    */
   private final MongoCollection<Document> machineSensors;
 
-  private final ClientSession session;
-
   /**
    * Create the repository.
    *
    * @throws ConfigurationRepositoryException When there occurs an error within the repository.
    */
-  public SensorHierarchyRepository(final String host, final String port) {
+  public SensorHierarchyRepository(final String mongoDbConnectionUrl) {
 
     this.mongoClient = MongoClients.create(
         MongoClientSettings.builder()
+            // TODO Check if the following does the trick as well:
+            // .applyConnectionString(connectionString)
             .applyToClusterSettings(
                 builder -> {
-                  builder.applyConnectionString(new ConnectionString(
-                      "mongodb://" + host + ":" + port + "/"
-                          + SensorHierarchyRepository.DATABASE_NAME
-                          + "?replicaSet=rs0"));
+                  builder.applyConnectionString(new ConnectionString(mongoDbConnectionUrl));
+                  // "mongodb://" + host + ":" + port + "/"+
+                  // SensorHierarchyRepository.DATABASE_NAME+ "?replicaSet=rs0"
                 })
             .build());
 
@@ -128,9 +124,9 @@ public final class SensorHierarchyRepository { // NOPMD see !8
    *
    * @throws ConfigurationRepositoryException When there occurs an error within the repository.
    */
-  public SensorHierarchyRepository(final String host, final int port) {
-    this(host, String.valueOf(port));
-  }
+  // public SensorHierarchyRepository(final String host, final int port) {
+  // this(host, String.valueOf(port));
+  // }
 
   /**
    * Initialize the database.
@@ -538,7 +534,7 @@ public final class SensorHierarchyRepository { // NOPMD see !8
         .filter(sensor -> flattedHierarchy
             .stream()
             .filter(sensor2 -> sensor.getIdentifier().equals(sensor2.getIdentifier()))
-            .count() > ONE)
+            .count() > 1)
         .map(sensor -> sensor.getIdentifier())
         .collect(Collectors.toList());
   }
@@ -618,7 +614,7 @@ public final class SensorHierarchyRepository { // NOPMD see !8
       throws SensorHierarchyNotFoundException {
     final DeleteResult result = this.sensorHierarchies
         .deleteOne(Filters.eq(SensorHierarchyRepository.IDENTIFIER_FIELD, identifier));
-    if (result.getDeletedCount() > ZERO) {
+    if (result.getDeletedCount() > 0) {
       throw new SensorHierarchyNotFoundException();
     }
 

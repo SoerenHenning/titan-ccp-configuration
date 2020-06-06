@@ -10,11 +10,13 @@ public final class Config { // NOPMD utility class alert
 
   private static final Configuration CONFIGURATION = ServiceConfigurations.createWithDefaults();
 
-  public static final String MONGODB_HOST =
-      CONFIGURATION.getString(ConfigurationKeys.MONGODB_HOST);
-  public static final int MONGODB_PORT =
-      Config.CONFIGURATION.getInt(ConfigurationKeys.MONGODB_PORT);
-  public static final boolean DEMO = Config.CONFIGURATION.getBoolean(ConfigurationKeys.DEMO);
+  // public static final String MONGODB_HOST =
+  // CONFIGURATION.getString(ConfigurationKeys.MONGODB_HOST);
+  // public static final int MONGODB_PORT =
+  // Config.CONFIGURATION.getInt(ConfigurationKeys.MONGODB_PORT);
+  public static final String MONGODB_CONNECTION_URL =
+      CONFIGURATION.getString(ConfigurationKeys.MONGODB_CONNECTION_URL);
+  public static final boolean DEMO = CONFIGURATION.getBoolean(ConfigurationKeys.DEMO);
   public static final boolean EVENT_PUBLISHING =
       CONFIGURATION.getBoolean(ConfigurationKeys.EVENT_PUBLISHING);
   public static final String KAFKA_TOPIC =
