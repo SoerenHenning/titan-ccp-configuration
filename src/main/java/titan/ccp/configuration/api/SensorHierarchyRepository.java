@@ -2,8 +2,6 @@ package titan.ccp.configuration.api; // NOPMD see !8
 
 import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
-import com.mongodb.ConnectionString;
-import com.mongodb.MongoClientSettings;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
@@ -84,17 +82,7 @@ public final class SensorHierarchyRepository { // NOPMD see !8
    */
   public SensorHierarchyRepository(final String mongoDbConnectionUrl) {
 
-    this.mongoClient = MongoClients.create(
-        MongoClientSettings.builder()
-            // TODO Check if the following does the trick as well:
-            // .applyConnectionString(connectionString)
-            .applyToClusterSettings(
-                builder -> {
-                  builder.applyConnectionString(new ConnectionString(mongoDbConnectionUrl));
-                  // "mongodb://" + host + ":" + port + "/"+
-                  // SensorHierarchyRepository.DATABASE_NAME+ "?replicaSet=rs0"
-                })
-            .build());
+    this.mongoClient = MongoClients.create(mongoDbConnectionUrl);
 
     this.machineSensors = this.mongoClient
         .getDatabase(DATABASE_NAME)
@@ -134,13 +122,16 @@ public final class SensorHierarchyRepository { // NOPMD see !8
   private void initDatabase() {
     final IndexOptions indexOptions = new IndexOptions();
     indexOptions.unique(true);
-    this.machineSensors
-        .createIndex(Indexes.compoundIndex(Indexes.text(IDENTIFIER_FIELD),
+    this.machineSensors.createIndex(
+        Indexes.compoundIndex(
+            Indexes.text(IDENTIFIER_FIELD),
             Indexes.text(TOP_LEVEL_IDENTIFIER_FIELD)));
-    this.sensorGroups
-        .createIndex(Indexes.text(SensorHierarchyRepository.IDENTIFIER_FIELD), indexOptions);
-    this.sensorHierarchies
-        .createIndex(Indexes.text(SensorHierarchyRepository.IDENTIFIER_FIELD), indexOptions);
+    this.sensorGroups.createIndex(
+        Indexes.text(SensorHierarchyRepository.IDENTIFIER_FIELD),
+        indexOptions);
+    this.sensorHierarchies.createIndex(
+        Indexes.text(SensorHierarchyRepository.IDENTIFIER_FIELD),
+        indexOptions);
   }
 
 
