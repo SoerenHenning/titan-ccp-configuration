@@ -1,12 +1,10 @@
 package titan.ccp.configuration.api; // NOPMD see !8
 
-import com.google.common.collect.Lists;
 import com.google.common.io.Resources;
 import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoIterable;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Indexes;
@@ -14,6 +12,7 @@ import com.mongodb.client.result.DeleteResult;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
@@ -108,15 +107,6 @@ public final class SensorHierarchyRepository { // NOPMD see !8
   }
 
   /**
-   * Create the repository.
-   *
-   * @throws ConfigurationRepositoryException When there occurs an error within the repository.
-   */
-  // public SensorHierarchyRepository(final String host, final int port) {
-  // this(host, String.valueOf(port));
-  // }
-
-  /**
    * Initialize the database.
    */
   private void initDatabase() {
@@ -143,7 +133,7 @@ public final class SensorHierarchyRepository { // NOPMD see !8
         this.getSensorHierarchy(DEFAULT_HIERARCHY_IDENTIFIER);
     if (existingHierarchy == null) {
       LOGGER.info("Initial sensor hierarchy does not exist. Creating Hierarchy...");
-      final SensorRegistry sensorHierarchy = this.getDefaultSensorHierarchy(); // NOPMD
+      final SensorRegistry sensorHierarchy = this.getDefaultSensorHierarchy();
 
       final Optional<List<String>> collisions = this.createSensorHierarchy(sensorHierarchy);
       if (collisions.isEmpty()) {
@@ -239,10 +229,10 @@ public final class SensorHierarchyRepository { // NOPMD see !8
    * @return A list of sensor hierarchies.
    */
   public List<SensorRegistry> getAllSensorHierarchies() {
-    final MongoIterable<SensorRegistry> results = this.sensorHierarchies
+    return this.sensorHierarchies
         .find()
-        .map(result -> SensorRegistry.fromJson(result.toJson()));
-    return Lists.newArrayList(results);
+        .map(result -> SensorRegistry.fromJson(result.toJson()))
+        .into(new ArrayList<>());
   }
 
   /**
