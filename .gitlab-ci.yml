@@ -74,7 +74,7 @@ deploy:
     - docker tag titan-ccp-configuration industrialdevops/titan-ccp-configuration:$DOCKER_TAG_NAME$(date +%Y%m%d%H%M%S)
     - docker tag titan-ccp-configuration industrialdevops/titan-ccp-configuration:$DOCKER_TAG_NAME$CI_COMMIT_SHA
     - echo $DOCKERHUB_PW | docker login -u $DOCKERHUB_ID --password-stdin
-    - docker push industrialdevops/titan-ccp-configuration
+    - docker push industrialdevops/titan-ccp-sensor-management
     - docker logout
   only:
     variables:
