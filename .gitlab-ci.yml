@@ -69,10 +69,10 @@ deploy:
     DOCKER_TLS_CERTDIR: "/certs"
   script:
     - DOCKER_TAG_NAME=$(echo $CI_COMMIT_REF_SLUG- | sed 's/^master-$//')
-    - docker build --pull -t titan-ccp-configuration .
-    - docker tag titan-ccp-configuration industrialdevops/titan-ccp-configuration:${DOCKER_TAG_NAME}latest
-    - docker tag titan-ccp-configuration industrialdevops/titan-ccp-configuration:$DOCKER_TAG_NAME$(date +%Y%m%d%H%M%S)
-    - docker tag titan-ccp-configuration industrialdevops/titan-ccp-configuration:$DOCKER_TAG_NAME$CI_COMMIT_SHA
+    - docker build --pull -t titan-ccp-sensor-management .
+    - docker tag titan-ccp-sensor-management industrialdevops/titan-ccp-sensor-management:${DOCKER_TAG_NAME}latest
+    - docker tag titan-ccp-sensor-management industrialdevops/titan-ccp-sensor-management:$DOCKER_TAG_NAME$(date +%Y%m%d%H%M%S)
+    - docker tag titan-ccp-sensor-management industrialdevops/titan-ccp-sensor-management:$DOCKER_TAG_NAME$CI_COMMIT_SHA
     - echo $DOCKERHUB_PW | docker login -u $DOCKERHUB_ID --password-stdin
     - docker push industrialdevops/titan-ccp-sensor-management
     - docker logout
