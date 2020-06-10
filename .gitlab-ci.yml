@@ -27,7 +27,6 @@ build:
   script: ./gradlew --build-cache assemble
   artifacts:
     paths:
-    paths:
       - build/libs/*.jar
       - build/distributions/*.tar
     expire_in: 1 day
