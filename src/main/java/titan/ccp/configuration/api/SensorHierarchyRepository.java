@@ -160,12 +160,15 @@ public final class SensorHierarchyRepository { // NOPMD see !8
    */
   private SensorRegistry getDefaultSensorHierarchy() {
     if (Config.DEMO) {
+      LOGGER.info("Started in demo mode. Use demo sensor hierarchy.");
       return this.getDemoSensorHierarchy();
     } else {
       final SensorRegistry initial = SensorRegistry.fromJson(Config.INITIAL_SENSOR_HIERARCHY);
       if (initial == null) {
+        LOGGER.info("No initial sensor hierarchy provided. Start with empty sensor hierarchy.");
         return this.getEmptySensorHierarchy();
       } else {
+        LOGGER.info("An initial sensor hierarchy is provided: {}.", initial);
         return initial;
       }
     }
